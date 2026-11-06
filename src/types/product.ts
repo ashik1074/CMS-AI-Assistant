@@ -81,7 +81,7 @@ export interface ProductForm {
   aspId: string;
   productName: string;
   shortDesc: string;
-  marketSegment: MarketSegment;
+  marketSegment: MarketSegment | '';
   productType: ProductType | '';
   currency: string;
   validityYears: number | null;
@@ -120,7 +120,7 @@ export interface ProductForm {
 export type ProductField = keyof ProductForm;
 
 /** Lifecycle of a product in the card management system. */
-export type ProductStatus = 'DRAFT' | 'PENDING_APPROVAL';
+export type ProductStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'REJECTED';
 
 /** Where a product was started, so pages outside the chat can update the chat's card. */
 export interface ProductOrigin {

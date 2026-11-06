@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { AIService, GenerationOptions } from '../types/chat';
 import { CONVERSATIONS_KEY, LocalConversationService } from '../services/conversationService';
 import { MockAIService } from '../services/mockAIService';
@@ -30,6 +30,11 @@ function setup(service: AIService = fastService()) {
 const composer = () => screen.getByRole('textbox', { name: 'Message AI Assistant' });
 const lastAssistant = () => screen.getAllByTestId('assistant-message').at(-1)!;
 const waitForStatus = (status: string) => waitFor(() => expect(lastAssistant()).toHaveAttribute('data-status', status), { timeout: 4000 });
+
+// These tests cover the AI Assistant; the portal's own pages are in Portal.test.tsx.
+beforeEach(() => {
+  window.location.hash = '#/assistant';
+});
 
 describe('App', () => {
   it('shows the welcome screen, then sends a message and streams a response', async () => {
@@ -365,7 +370,7 @@ describe('App', () => {
     const confirm = screen.getByRole('alertdialog', { name: 'Delete project?' });
     expect(confirm).toHaveTextContent('Its 1 chat will be kept');
     await user.click(within(confirm).getByRole('button', { name: 'Delete' }));
-    expect(window.location.hash).toBe('#/');
+    expect(window.location.hash).toBe('#/assistant');
     const sidebar = screen.getByRole('navigation', { name: 'Chat history' });
     expect(within(sidebar).queryByRole('button', { name: 'Reports' })).not.toBeInTheDocument();
     expect(within(sidebar).getByText('First chat')).toBeInTheDocument();
@@ -590,7 +595,7 @@ describe('Agentic product creation', { timeout: 30000 }, () => {
 
     // Basics: the answers, plus domestic and international transaction toggles.
     const basicsSection = await openSection(user, 'Basics');
-    expect(basicsSection.getByLabelText(/^Product name/)).toHaveValue('Commercial Prepaid Card');
+    expect(basicsSection.getByLabelText(/^Product name/i)).toHaveValue('Commercial Prepaid Card');
     expect(basicsSection.getByRole('switch', { name: 'Domestic transaction' })).toBeChecked();
     expect(basicsSection.getByRole('switch', { name: 'International transaction' })).toBeChecked();
 
@@ -627,7 +632,7 @@ describe('Agentic product creation', { timeout: 30000 }, () => {
 
     // Submitting too early opens what needs work and flags it.
     const basicsSection = await openSection(user, 'Basics');
-    await user.clear(basicsSection.getByLabelText(/^Product name/));
+    await user.clear(basicsSection.getByLabelText(/^Product name/i));
     await user.click(sectionButtons()[0]);
     await user.click(within(card()).getByRole('button', { name: 'Create Product' }));
     expect(card()).toHaveAttribute('data-status', 'pending');
@@ -639,7 +644,7 @@ describe('Agentic product creation', { timeout: 30000 }, () => {
     expect(schemes.getByText('Select a BIN.')).toBeInTheDocument();
     expect(within(card()).getByText(/5 fields need attention/)).toBeInTheDocument();
 
-    await user.type(within(card()).getByLabelText(/^Product name/), 'Everyday Prepaid');
+    await user.type(within(card()).getByLabelText(/^Product name/i), 'Everyday Prepaid');
     await chooseScheme(user);
     expect(within(card()).queryByText(/need attention/)).not.toBeInTheDocument();
     await user.click(within(card()).getByRole('button', { name: 'Create Product' }));
@@ -674,11 +679,12 @@ describe('Agentic product creation', { timeout: 30000 }, () => {
     expect(link).toHaveAttribute('href', `#/products/${productId}/edit`);
 
     await user.click(link);
-    const page = await screen.findByTestId('draft-product');
-    await within(page).findByText(`Draft ${productId}`);
-    expect((await openSection(user, 'Basics', page)).getByLabelText(/^Product name/)).toHaveValue('Gold Saver');
+    expect(await screen.findByLabelText(/^Product name/i)).toHaveValue('Gold Saver');
+    const page = screen.getByTestId('draft-product');
+    await user.click(within(page).getByRole('button', { name: 'Schemes' }));
     await chooseScheme(user);
-    await user.click(within(page).getByRole('button', { name: 'Create Product' }));
+    await user.click(within(page).getByRole('button', { name: 'Preview & Submit' }));
+    await user.click(within(page).getByRole('button', { name: 'Submit Product' }));
 
     // Submitting from the draft page opens the product details, and the chat card follows.
     const details = await screen.findByTestId('product-details');
@@ -704,7 +710,7 @@ describe('Agentic product creation', { timeout: 30000 }, () => {
     await chooseScheme(user);
     expect(percent()).toBe(100);
     expect(ticks()).toContain('Scheme configuration');
-    await user.clear((await openSection(user, 'Basics')).getByLabelText(/^Product name/));
+    await user.clear((await openSection(user, 'Basics')).getByLabelText(/^Product name/i));
     expect(percent()).toBeLessThan(100);
     expect(ticks()).not.toContain('Basics');
     expect(within(card()).getByText('1 item left to complete')).toBeInTheDocument();
@@ -720,7 +726,7 @@ describe('Agentic product creation', { timeout: 30000 }, () => {
 
     await answerBasics(user, { segment: 'CONSUMER' });
     const section = await openSection(user, 'Basics');
-    expect(section.getByLabelText(/^Product name/)).toHaveValue('Platinum Product');
+    expect(section.getByLabelText(/^Product name/i)).toHaveValue('Platinum Product');
     expect(section.getByRole('switch', { name: 'International transaction' })).not.toBeChecked();
   });
 
@@ -748,8 +754,8 @@ describe('Agentic product creation', { timeout: 30000 }, () => {
 
     // The user's choices survive the failure.
     const section = await openSection(user, 'Basics');
-    await user.clear(section.getByLabelText(/^Product name/));
-    await user.type(section.getByLabelText(/^Product name/), 'Gold Plus');
+    await user.clear(section.getByLabelText(/^Product name/i));
+    await user.type(section.getByLabelText(/^Product name/i), 'Gold Plus');
     await user.click(within(card()).getByRole('button', { name: 'Create Product' }));
     await waitFor(() => expect(card()).toHaveAttribute('data-status', 'submitted'));
     expect(within(card()).getByTestId('product-id')).toHaveTextContent('1002');

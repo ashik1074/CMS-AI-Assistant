@@ -1,4 +1,4 @@
-import { PanelLeftOpen, Menu, Moon, Share, SquarePen, Sun } from 'lucide-react';
+import { LayoutGrid, PanelLeftOpen, Menu, Moon, Share, SquarePen, Sun } from 'lucide-react';
 import type { CurrentUser } from '../../config/currentUser';
 import type { Theme } from '../../types/conversation';
 import { IconButton } from '../common/IconButton';
@@ -13,6 +13,8 @@ interface HeaderProps {
   theme: Theme;
   user: CurrentUser;
   onOpenSidebar: () => void;
+  /** Phones: opens the portal navigation (Product List, AI Assistant). */
+  onOpenPortalNav?: () => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
   onToggleTheme: () => void;
@@ -21,11 +23,16 @@ interface HeaderProps {
   shareDisabled?: boolean;
 }
 
-export function Header({ title, project, sidebarVisible, mobile, theme, user, onOpenSidebar, onNewChat, onOpenSettings, onToggleTheme, onShare, shareDisabled }: HeaderProps) {
+export function Header({ title, project, sidebarVisible, mobile, theme, user, onOpenSidebar, onOpenPortalNav, onNewChat, onOpenSettings, onToggleTheme, onShare, shareDisabled }: HeaderProps) {
   const showSidebarControls = mobile || !sidebarVisible;
   const dark = theme === 'dark';
   return (
     <header className="app-header absolute inset-x-0 top-0 z-20 flex h-14 items-center gap-1 px-2 sm:px-3">
+      {onOpenPortalNav && (
+        <IconButton label="Open navigation" onClick={onOpenPortalNav} tooltipSide="bottom">
+          <LayoutGrid className="h-5 w-5" aria-hidden="true" />
+        </IconButton>
+      )}
       {showSidebarControls && (
         <>
           <IconButton label={mobile ? 'Open sidebar' : 'Expand sidebar'} onClick={onOpenSidebar} tooltipSide="bottom">

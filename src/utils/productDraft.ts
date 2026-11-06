@@ -29,6 +29,7 @@ import type {
   SchemeConfig,
   TxnLimit,
   YesNo,
+  ProductStatus,
 } from '../types/product';
 
 export const MARKET_SEGMENTS: MarketSegment[] = ['CONSUMER', 'COMMERCIAL'];
@@ -132,6 +133,12 @@ export const stepOfKey = (key: string): ProductStep => STEP_OF[key.split('.')[0]
 /** Links to the product pages (hash routes, see app/routes). */
 export const productDetailsHref = (productId: string) => `#/products/${encodeURIComponent(productId)}`;
 export const draftFormHref = (productId: string) => `#/products/${encodeURIComponent(productId)}/edit`;
+
+export const PRODUCT_STATUS_LABELS = {
+  DRAFT: 'Draft',
+  PENDING_APPROVAL: 'Pending approval',
+  REJECTED: 'Rejected',
+} as const satisfies Record<ProductStatus, string>;
 
 /* ---------- Intent ---------- */
 
@@ -477,8 +484,8 @@ export function buildProductDraft(preferences: Partial<ProductForm> = {}, { crea
     countryControl: p.countryControl ?? control('ALLOW_ALL_EXCEPT', []),
     currencyControl: p.currencyControl ?? control('ALLOW_ALL_EXCEPT', []),
     mccControl: p.mccControl ?? control('ALLOW_ALL_EXCEPT', []),
-    domesticLimits: p.domesticLimits ?? [suggestCashLimit(currency, marketSegment, productType)],
-    intlLimits: p.intlLimits ?? [suggestCashLimit(intlSettlementCurrency, marketSegment, productType)],
+    domesticLimits: p.domesticLimits ?? [suggestCashLimit(currency, marketSegment || 'CONSUMER', productType)],
+    intlLimits: p.intlLimits ?? [suggestCashLimit(intlSettlementCurrency, marketSegment || 'CONSUMER', productType)],
     serviceFees: p.serviceFees ?? defaultServiceFees(currency, effectiveDate),
     domesticFees: p.domesticFees ?? [],
     intlFees: p.intlFees ?? [],
@@ -486,6 +493,27 @@ export function buildProductDraft(preferences: Partial<ProductForm> = {}, { crea
     schemes: p.schemes ?? [emptyScheme()],
     createdBy: p.createdBy ?? createdBy,
   };
+}
+
+/** The Product Setup form's starting point: the user fills in the basics, and no limits or fees are suggested. */
+export function blankProductForm(createdBy = ''): ProductForm {
+  return buildProductDraft(
+    {
+      productName: '',
+      shortDesc: '',
+      marketSegment: '',
+      productType: '',
+      currency: '',
+      validityYears: null,
+      defaultName: '',
+      effectiveDate: '',
+      domesticSettlementCurrency: '',
+      domesticLimits: [],
+      intlLimits: [],
+      serviceFees: [],
+    },
+    { createdBy },
+  );
 }
 
 /* ---------- Validation ---------- */
@@ -552,6 +580,7 @@ export function validateProduct(form: ProductForm): ProductErrors {
   const errors: ProductErrors = {};
   // Basics
   if (!form.productName.trim()) errors.productName = 'Product name is required.';
+  if (!form.marketSegment) errors.marketSegment = 'Choose a market segment.';
   if (!form.productType) errors.productType = 'Choose a product type.';
   if (!CURRENCY_CODE.test(form.currency)) errors.currency = 'Choose the account currency.';
   if (form.validityYears === null || !Number.isInteger(form.validityYears) || form.validityYears <= 0) errors.validityYears = 'Choose the card validity.';
@@ -752,7 +781,7 @@ export function parseProductPreferences(raw: unknown): Partial<ProductForm> {
     aspId: text('aspId'),
     productName: text('productName'),
     shortDesc: text('shortDesc'),
-    marketSegment: oneOf('marketSegment', MARKET_SEGMENTS),
+    marketSegment: raw.marketSegment === '' ? '' : oneOf('marketSegment', MARKET_SEGMENTS),
     productType: raw.productType === '' ? '' : oneOf('productType', PRODUCT_TYPES),
     currency: text('currency'),
     validityYears: 'validityYears' in raw ? numOrNull(raw.validityYears) : undefined,

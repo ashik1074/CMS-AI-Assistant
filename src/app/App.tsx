@@ -32,8 +32,12 @@ import { useProductSetup } from '../hooks/useProductSetup';
 import { useReports } from '../hooks/useReports';
 import { mockProductApi, type ProductApi } from '../services/productService';
 import { DraftProductPage, ProductDetailsPage } from '../components/products/ProductPages';
+import { PORTAL_NAME, PortalShell } from '../components/portal/PortalShell';
+import { ProductListPage } from '../components/portal/ProductListPage';
+import { ProductWizard } from '../components/portal/ProductWizard';
 import type { ProductRecord } from '../types/product';
-import { useHashRoute } from './routes';
+import { blankProductForm } from '../utils/productDraft';
+import { isProductRoute, useHashRoute } from './routes';
 import { DEFAULT_USER, type CurrentUser } from '../config/currentUser';
 
 export interface AppProps {
@@ -102,7 +106,7 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
   const routeProjectId = route.name === 'project' ? route.projectId : null;
   /** The project whose page is open, or that the open chat belongs to. */
   const activeProject = projects.getProject(routeProjectId ?? active?.projectId);
-  const pageTitle = route.name === 'product' ? 'Product details' : route.name === 'productDraft' ? 'Draft product' : undefined;
+  const productPageTitle = route.name === 'productList' ? 'Product List' : route.name === 'productNew' ? 'Create Product' : route.name === 'product' ? 'Product details' : route.name === 'productDraft' ? 'Edit Product' : undefined;
 
   const onConversationCreated = useCallback((id: string) => navigate({ name: 'conversation', conversationId: id }), [navigate]);
   const chat = useChat({ aiService, dispatch: store.dispatch, getConversation: store.getConversation, settings, onConversationCreated });
@@ -129,8 +133,9 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
     (record: ProductRecord) => {
       syncFromRecord(record);
       onDraftSaved(record);
+      navigate({ name: 'productList' });
     },
-    [syncFromRecord, onDraftSaved],
+    [syncFromRecord, onDraftSaved, navigate],
   );
   const draftPageSubmitted = useCallback(
     (record: ProductRecord) => {
@@ -140,11 +145,28 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
     },
     [syncFromRecord, onProductSubmitted, navigate],
   );
+  const backToProducts = useCallback(() => navigate({ name: 'productList' }), [navigate]);
+  const newProductSaved = useCallback(
+    (record: ProductRecord) => {
+      onDraftSaved(record);
+      backToProducts();
+    },
+    [onDraftSaved, backToProducts],
+  );
+  const newProductSubmitted = useCallback(
+    (record: ProductRecord) => {
+      onProductSubmitted(record);
+      backToProducts();
+    },
+    [onProductSubmitted, backToProducts],
+  );
 
   const [uiPrefs] = useState(loadUiPrefs);
+  const [blankForm] = useState(() => blankProductForm(user.name));
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(uiPrefs.sidebarOpen);
   const [sidebarWidth, setSidebarWidth] = useState(uiPrefs.sidebarWidth);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [portalNavOpen, setPortalNavOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm>(null);
   const [projectDialog, setProjectDialog] = useState<ProjectDialogState>(null);
@@ -169,9 +191,13 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
   }, [desktopSidebarOpen, sidebarWidth]);
 
   useEffect(() => {
-    const page = active ? active.title : route.name === 'library' ? 'Library' : route.name === 'project' ? activeProject?.name : pageTitle;
+    if (productPageTitle) {
+      document.title = `${productPageTitle} · ${PORTAL_NAME}`;
+      return;
+    }
+    const page = active ? active.title : route.name === 'library' ? 'Library' : route.name === 'project' ? activeProject?.name : undefined;
     document.title = page ? `${page} · AI Assistant (Demo)` : 'AI Assistant (Demo)';
-  }, [active, route.name, activeProject, pageTitle]);
+  }, [active, route.name, activeProject, productPageTitle]);
 
   const focusComposer = useCallback(() => requestAnimationFrame(() => inputRef.current?.focus()), []);
 
@@ -359,6 +385,25 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
 
   return (
     <>
+      <PortalShell section={isProductRoute(route) ? 'products' : 'assistant'} mobile={mobile} theme={settings.theme} user={user} onToggleTheme={toggleTheme} onOpenSettings={() => setSettingsOpen(true)} drawerOpen={portalNavOpen} onDrawerOpenChange={setPortalNavOpen}>
+      {route.name === 'productList' ? (
+        <ProductListPage api={productApi} />
+      ) : route.name === 'productNew' ? (
+        <ProductWizard
+          api={productApi}
+          title="Create Product"
+          initialValues={blankForm}
+          userName={user.name}
+          testId="product-setup-page"
+          onCancel={backToProducts}
+          onSaved={newProductSaved}
+          onSubmitted={newProductSubmitted}
+        />
+      ) : route.name === 'product' ? (
+        <ProductDetailsPage api={productApi} productId={route.productId} />
+      ) : route.name === 'productDraft' ? (
+        <DraftProductPage api={productApi} productId={route.productId} userName={user.name} onSaved={draftPageSaved} onSubmitted={draftPageSubmitted} onCancel={backToProducts} />
+      ) : (
       <MainLayout
         mobile={mobile}
         sidebarOpen={sidebarOpen}
@@ -395,13 +440,14 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
         }
         header={
           <Header
-            title={active?.title ?? pageTitle}
+            title={active?.title}
             project={active && activeProject ? { name: activeProject.name, onOpen: () => openProject(activeProject.id) } : undefined}
             sidebarVisible={sidebarOpen}
             mobile={mobile}
             theme={settings.theme}
             user={user}
             onOpenSidebar={openSidebar}
+            onOpenPortalNav={mobile ? () => setPortalNavOpen(true) : undefined}
             onNewChat={newChat}
             onOpenSettings={() => setSettingsOpen(true)}
             onToggleTheme={toggleTheme}
@@ -412,10 +458,6 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
       >
         {route.name === 'shared' ? (
           <SharedChatView key={route.payload} payload={route.payload} onContinue={continueSharedChat} onNewChat={newChat} />
-        ) : route.name === 'product' ? (
-          <ProductDetailsPage api={productApi} productId={route.productId} />
-        ) : route.name === 'productDraft' ? (
-          <DraftProductPage api={productApi} productId={route.productId} userName={user.name} onSaved={draftPageSaved} onSubmitted={draftPageSubmitted} />
         ) : route.name === 'library' ? (
           <LibraryView conversations={store.conversations} onOpenChat={selectConversation} />
         ) : route.name === 'project' ? (
@@ -450,6 +492,8 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
           />
         )}
       </MainLayout>
+      )}
+      </PortalShell>
 
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="live-region">
         {chat.announcement}

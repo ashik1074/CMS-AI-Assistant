@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Clock, FileEdit, Loader2, MessageSquare, PackageX } from 'lucide-react';
+import { ArrowLeft, Ban, Clock, FileEdit, Loader2, PackageX } from 'lucide-react';
 import type { ProductApi } from '../../services/productService';
-import type { ProductForm, ProductRecord } from '../../types/product';
+import type { ProductRecord } from '../../types/product';
 import { productErrorMessage } from '../../hooks/useProductSetup';
 import { draftFormHref, productDetailsHref } from '../../utils/productDraft';
-import { ProductSetupForm } from '../agent/ProductSetupCard';
 import { ProductSummary } from '../agent/productSteps';
+import { PortalPageHeader, ProductStatusBadge } from '../portal/PortalPage';
+import { ProductWizard } from '../portal/ProductWizard';
 
 type Loaded = { state: 'loading' } | { state: 'missing' } | { state: 'error'; message: string } | { state: 'ready'; record: ProductRecord };
 
@@ -26,16 +27,14 @@ function useProduct(api: ProductApi, productId: string) {
       });
     return () => controller.abort();
   }, [api, productId]);
-  return [loaded, setLoaded] as const;
+  return loaded;
 }
 
 function PageShell({ title, children, testId }: { title: string; children: ReactNode; testId: string }) {
   return (
-    <div className="chat-surface flex min-h-0 flex-1 flex-col overflow-y-auto pt-14" data-testid={testId}>
-      <div className="mx-auto w-full max-w-4xl px-4 pb-10 pt-6 sm:px-6">
-        <h1 className="sr-only">{title}</h1>
-        {children}
-      </div>
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8" data-testid={testId}>
+      <PortalPageHeader title={title} crumbs={[{ label: 'Product Management' }, { label: 'Product List', href: '#/' }, { label: title }]} />
+      <div className="mt-4 max-w-5xl">{children}</div>
     </div>
   );
 }
@@ -53,7 +52,7 @@ function StatusMessage({ icon, title, children }: { icon: ReactNode; title: stri
 }
 
 const linkClass = 'inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline dark:text-brand-300';
-const chatHref = (record: ProductRecord) => (record.origin ? `#/c/${encodeURIComponent(record.origin.conversationId)}` : '#/');
+const backHref = (record: ProductRecord) => (record.origin ? `#/c/${encodeURIComponent(record.origin.conversationId)}` : '#/');
 
 function Loading() {
   return (
@@ -71,7 +70,7 @@ function NotFound({ productId, message }: { productId: string; message?: string 
       <p className="max-w-md text-sm text-zinc-600 dark:text-zinc-400">{message ?? 'It may have been created in a different browser. Products in this demo are stored in this browser only.'}</p>
       <a href="#/" className={linkClass}>
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to the assistant
+        Back to Product List
       </a>
     </StatusMessage>
   );
@@ -80,7 +79,7 @@ function NotFound({ productId, message }: { productId: string; message?: string 
 /* ---------- Product details ---------- */
 
 export function ProductDetailsPage({ api, productId }: { api: ProductApi; productId: string }) {
-  const [loaded] = useProduct(api, productId);
+  const loaded = useProduct(api, productId);
   if (loaded.state === 'loading') return <PageShell title="Product details" testId="product-details"><Loading /></PageShell>;
   if (loaded.state !== 'ready') return <PageShell title="Product details" testId="product-details"><NotFound productId={productId} message={loaded.state === 'error' ? loaded.message : undefined} /></PageShell>;
 
@@ -89,9 +88,9 @@ export function ProductDetailsPage({ api, productId }: { api: ProductApi; produc
   const when = new Date(record.submittedAt ?? record.updatedAt).toLocaleString();
   return (
     <PageShell title="Product details" testId="product-details">
-      <a href={chatHref(record)} className={linkClass}>
+      <a href={backHref(record)} className={linkClass}>
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {record.origin ? 'Back to the chat' : 'Back to the assistant'}
+        {record.origin ? 'Back to the chat' : 'Back to Product List'}
       </a>
       <div className="mt-4 rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
         <div className="flex flex-wrap items-start gap-3 rounded-t-2xl border-b border-zinc-200 bg-zinc-50 px-5 py-4 dark:border-zinc-700 dark:bg-zinc-800/60">
@@ -103,16 +102,7 @@ export function ProductDetailsPage({ api, productId }: { api: ProductApi; produc
               {record.createdBy && <> by {record.createdBy}</>}
             </p>
           </div>
-          <span
-            className={
-              draft
-                ? 'rounded-full bg-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
-                : 'rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-500/20 dark:text-amber-200'
-            }
-            data-testid="product-status"
-          >
-            {draft ? 'Draft' : 'Pending approval'}
-          </span>
+          <ProductStatusBadge status={record.status} testId="product-status" />
         </div>
         <div className="flex gap-2 border-b border-zinc-200 px-5 py-3 text-sm dark:border-zinc-700">
           {draft ? (
@@ -124,6 +114,11 @@ export function ProductDetailsPage({ api, productId }: { api: ProductApi; produc
                   Open draft product form
                 </a>
               </p>
+            </>
+          ) : record.status === 'REJECTED' ? (
+            <>
+              <Ban className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+              <p className="flex-1">An approver rejected this product, so cards can&apos;t be issued under it. To try again, create a new product from the Product List.</p>
             </>
           ) : (
             <>
@@ -148,12 +143,11 @@ interface DraftProductPageProps {
   userName: string;
   onSaved: (record: ProductRecord) => void;
   onSubmitted: (record: ProductRecord) => void;
+  onCancel: () => void;
 }
 
-export function DraftProductPage({ api, productId, userName, onSaved, onSubmitted }: DraftProductPageProps) {
-  const [loaded, setLoaded] = useProduct(api, productId);
-  const [busy, setBusy] = useState<'submit' | 'draft' | null>(null);
-  const [error, setError] = useState<string>();
+export function DraftProductPage({ api, productId, userName, onSaved, onSubmitted, onCancel }: DraftProductPageProps) {
+  const loaded = useProduct(api, productId);
 
   if (loaded.state === 'loading') return <PageShell title="Draft product" testId="draft-product"><Loading /></PageShell>;
   if (loaded.state !== 'ready') return <PageShell title="Draft product" testId="draft-product"><NotFound productId={productId} message={loaded.state === 'error' ? loaded.message : undefined} /></PageShell>;
@@ -163,7 +157,7 @@ export function DraftProductPage({ api, productId, userName, onSaved, onSubmitte
     return (
       <PageShell title="Draft product" testId="draft-product">
         <StatusMessage icon={<Clock className="h-8 w-8" />} title="This product was already submitted">
-          <p className="max-w-md text-sm text-zinc-600 dark:text-zinc-400">It is pending approval, so it can no longer be edited as a draft.</p>
+          <p className="max-w-md text-sm text-zinc-600 dark:text-zinc-400">It can no longer be edited as a draft.</p>
           <a href={productDetailsHref(record.productId)} className={linkClass}>
             View product details
           </a>
@@ -172,40 +166,18 @@ export function DraftProductPage({ api, productId, userName, onSaved, onSubmitte
     );
   }
 
-  const save = async (values: ProductForm, kind: 'submit' | 'draft') => {
-    setBusy(kind);
-    setError(undefined);
-    try {
-      const next = kind === 'submit' ? await api.submitProduct(values, { productId }) : await api.saveDraft(values, { productId });
-      if (kind === 'submit') onSubmitted(next);
-      else {
-        setLoaded({ state: 'ready', record: next });
-        onSaved(next);
-      }
-    } catch (e) {
-      setError(productErrorMessage(e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
   return (
-    <PageShell title="Draft product" testId="draft-product">
-      <a href={chatHref(record)} className={linkClass}>
-        {record.origin ? <MessageSquare className="h-4 w-4" aria-hidden="true" /> : <ArrowLeft className="h-4 w-4" aria-hidden="true" />}
-        {record.origin ? 'Back to the chat' : 'Back to the assistant'}
-      </a>
-      <ProductSetupForm
-        key={record.productId}
-        initialValues={record.values}
-        status="draft"
-        busy={busy}
-        error={error}
-        userName={userName}
-        subtitle={`Draft ${record.productId}`}
-        onSubmit={(values) => void save(values, 'submit')}
-        onSaveDraft={(values) => void save(values, 'draft')}
-      />
-    </PageShell>
+    <ProductWizard
+      key={record.productId}
+      api={api}
+      title="Edit Product"
+      initialValues={record.values}
+      productId={record.productId}
+      userName={userName}
+      testId="draft-product"
+      onCancel={onCancel}
+      onSaved={onSaved}
+      onSubmitted={onSubmitted}
+    />
   );
 }

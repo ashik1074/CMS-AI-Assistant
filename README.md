@@ -2,6 +2,15 @@
 
 A responsive chat app that looks and behaves like an LLM chat product. **No AI model, API key, backend, or network request is involved.** Every answer comes from a local mock response engine. The engine streams text, simulates thinking and multi-step progress, and can simulate failures.
 
+## Portal
+
+The app opens on the **Product List** (`#/`), inside a portal with a dark sidebar: **AI Assistant** (`#/assistant`) and **Product Management → Product List**. A chat keeps generating while you browse the portal's other pages.
+
+- **Product List:** search by name, filter by status, and open a product. Drafts open in the form and can be deleted; other products open read-only. On first visit the list is filled with sample products (`src/services/demoProducts.ts`, called from `main.tsx`).
+- **Product Setup** (`#/products/new`): a step-by-step form (Basics → Policies → Permissions → Limits → Fees → Schemes → Preview & Submit). **Next Step** checks the current step, **Save and Exit** keeps a draft (it only needs a name), and **Submit Product** sends it for approval.
+
+The form and the chat's product card share their fields, validation and `ProductApi`, so a product from either one appears in the Product List.
+
 ## Requirements
 
 - Node.js 20+ (developed with Node 24)

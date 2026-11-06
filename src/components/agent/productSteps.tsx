@@ -42,7 +42,7 @@ const set =
     setForm((f) => ({ ...f, [key]: value }));
 
 const enumOptions = <T extends string>(values: readonly T[]) => values.map((v) => ({ value: v, label: titleCase(v) }));
-const currencyOptions = (current: string) => [...new Set([...CURRENCIES, ...(current ? [current] : [])])].map((c) => ({ value: c, label: c }));
+const currencyOptions = (current: string) => [...(current ? [] : [{ value: '', label: 'Select Currency' }]), ...[...new Set([...CURRENCIES, ...(current ? [current] : [])])].map((c) => ({ value: c, label: c }))];
 const idOptions = (items: PolicyItem[], placeholder: string) => [{ value: '', label: placeholder }, ...items.map((i) => ({ value: String(i.id), label: i.name }))];
 const toId = (v: string) => (v === '' ? null : Number(v));
 const TXN_OPTIONS = Object.entries(TXN_TYPES).map(([value, label]) => ({ value, label }));
@@ -56,42 +56,55 @@ export function BasicsStep({ form, setForm, errors, fromUser, disabled }: StepPr
   return (
     <div className="space-y-5">
       <section className="space-y-3">
-        <StepHeading title="Product information" />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TextField label="Product name" required value={form.productName} onChange={(v) => update('productName', v)} maxLength={100} {...common('productName')} />
-          <TextField label="Description" value={form.shortDesc} onChange={(v) => update('shortDesc', v)} placeholder="Enter description" maxLength={MAX_DESCRIPTION} {...common('shortDesc')} />
-          <SelectField label="Market segment" required value={form.marketSegment} options={enumOptions(MARKET_SEGMENTS)} onChange={(v) => update('marketSegment', v)} {...common('marketSegment')} />
+        <StepHeading title="Product Information" />
+        {/* Wide containers (the Product Setup page) fit four fields in a row; the chat card keeps two. */}
+        <div className="@container">
+        <div className="grid gap-3 sm:grid-cols-2 @3xl:grid-cols-4">
+          <TextField label="Product Name" required value={form.productName} onChange={(v) => update('productName', v)} placeholder="Enter Product Name" maxLength={100} hideCounter className="@3xl:col-span-2" {...common('productName')} />
+          <TextField label="Description" value={form.shortDesc} onChange={(v) => update('shortDesc', v)} placeholder="Enter Description" maxLength={MAX_DESCRIPTION} className="@3xl:col-span-2" {...common('shortDesc')} />
+          <SelectField label="Market Segment" required value={form.marketSegment} options={[{ value: '', label: 'Select Market Segment' }, ...enumOptions(MARKET_SEGMENTS)]} onChange={(v) => update('marketSegment', v)} {...common('marketSegment')} />
           <SelectField
-            label="Product type"
+            label="Product Type"
             required
             value={form.productType}
-            options={[{ value: '', label: 'Select product type' }, ...enumOptions(PRODUCT_TYPES)]}
+            options={[{ value: '', label: 'Select Product Type' }, ...enumOptions(PRODUCT_TYPES)]}
             onChange={(v) => update('productType', v)}
             {...common('productType')}
           />
-          <SelectField label="Account currency" required value={form.currency} options={currencyOptions(form.currency)} onChange={(v) => update('currency', v)} {...common('currency')} />
           <SelectField
-            label="Card validity duration (in years)"
+            label="Account Currency"
+            required
+            value={form.currency}
+            options={currencyOptions(form.currency)}
+            // Domestic settlement follows the account currency until the user chooses one.
+            onChange={(v) => setForm((f) => ({ ...f, currency: v, domesticSettlementCurrency: f.domesticSettlementCurrency || v }))}
+            {...common('currency')}
+          />
+          <SelectField
+            label="Card Validity Duration (in years)"
             required
             value={form.validityYears === null ? '' : String(form.validityYears)}
-            options={[{ value: '', label: 'Select validity' }, ...validity.map((y) => ({ value: String(y), label: String(y) }))]}
+            options={[{ value: '', label: 'Select Card Validity Duration' }, ...validity.map((y) => ({ value: String(y), label: String(y) }))]}
             onChange={(v) => update('validityYears', v ? Number(v) : null)}
             {...common('validityYears')}
           />
           <TextField
-            label="Default cardholder name (anonymous card)"
+            label="Default Cardholder Name (Anonymous Card)"
             value={form.defaultName}
             onChange={(v) => update('defaultName', v)}
+            placeholder="Enter Default Name"
+            className="@3xl:col-span-2"
             maxLength={MAX_DEFAULT_NAME}
             uppercase
             {...common('defaultName')}
           />
-          <TextField label="Live from" required type="date" value={form.effectiveDate} onChange={(v) => update('effectiveDate', v)} {...common('effectiveDate')} />
+          <TextField label="Live From" required type="date" value={form.effectiveDate} onChange={(v) => update('effectiveDate', v)} className="@3xl:col-span-2" {...common('effectiveDate')} />
+        </div>
         </div>
       </section>
 
       <section className="space-y-3">
-        <StepHeading title="Transaction scope" />
+        <StepHeading title="Transaction Scope" />
         <div className="grid gap-3 sm:grid-cols-2">
           <Panel
             title="Domestic transaction"

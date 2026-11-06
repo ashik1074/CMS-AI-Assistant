@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * Hash routes: `#/` (new chat), `#/c/<conversationId>`, `#/library`, `#/p/<projectId>`,
- * `#/products/<productId>` (product details) and `#/products/<productId>/edit` (draft product form).
+ * Hash routes: `#/` (Product List, the landing page), `#/products/new` (Product Setup form),
+ * `#/products/<productId>` (product details), `#/products/<productId>/edit` (draft product form),
+ * and for the AI Assistant `#/assistant` (new chat), `#/c/<conversationId>`, `#/library` and `#/p/<projectId>`.
  * Hash routing needs no server config.
  */
 export type Route =
+  | { name: 'productList' }
+  | { name: 'productNew' }
+  /** The AI Assistant's new-chat screen. */
   | { name: 'home' }
   | { name: 'conversation'; conversationId: string }
   | { name: 'library' }
@@ -19,6 +23,8 @@ const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
 export function parseHash(hash: string): Route {
   if (hash === '#/library') return { name: 'library' };
+  if (hash === '#/assistant') return { name: 'home' };
+  if (hash === '#/products/new') return { name: 'productNew' };
   const shared = /^#\/s\/([A-Za-z0-9_-]+)$/.exec(hash);
   if (shared) return { name: 'shared', payload: shared[1] };
   const product = /^#\/products\/([^/?#]+)(\/edit)?$/.exec(hash);
@@ -31,8 +37,11 @@ export function parseHash(hash: string): Route {
     const id = decodeURIComponent(match[2]);
     if (ID_PATTERN.test(id)) return match[1] === 'c' ? { name: 'conversation', conversationId: id } : { name: 'project', projectId: id };
   }
-  return { name: 'home' };
+  return { name: 'productList' };
 }
+
+/** Pages of the portal itself, as opposed to the AI Assistant's chat layout. */
+export const isProductRoute = (route: Route) => route.name === 'productList' || route.name === 'productNew' || route.name === 'product' || route.name === 'productDraft';
 
 export function routeToHash(route: Route): string {
   switch (route.name) {
@@ -42,6 +51,10 @@ export function routeToHash(route: Route): string {
       return `#/p/${encodeURIComponent(route.projectId)}`;
     case 'library':
       return '#/library';
+    case 'home':
+      return '#/assistant';
+    case 'productNew':
+      return '#/products/new';
     case 'product':
       return `#/products/${encodeURIComponent(route.productId)}`;
     case 'productDraft':

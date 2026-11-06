@@ -118,7 +118,7 @@ describe('routes', () => {
     expect(parseHash('#/library')).toEqual({ name: 'library' });
     expect(parseHash('#/p/abc-1')).toEqual({ name: 'project', projectId: 'abc-1' });
     expect(parseHash('#/c/abc-1')).toEqual({ name: 'conversation', conversationId: 'abc-1' });
-    expect(parseHash('#/p/bad id')).toEqual({ name: 'home' });
+    expect(parseHash('#/p/bad id')).toEqual({ name: 'productList' });
     expect(routeToHash({ name: 'project', projectId: 'abc-1' })).toBe('#/p/abc-1');
     expect(routeToHash({ name: 'library' })).toBe('#/library');
   });

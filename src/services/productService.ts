@@ -18,6 +18,8 @@ export interface ProductApi {
   getProduct(productId: string, options?: { signal?: AbortSignal }): Promise<ProductRecord | null>;
   /** Every product (drafts included), for reporting. */
   listProducts(options?: { signal?: AbortSignal }): Promise<ProductRecord[]>;
+  /** Deletes a draft. Products that were submitted are kept. */
+  deleteProduct(productId: string, options?: { signal?: AbortSignal }): Promise<void>;
 }
 
 export class ProductApiError extends Error {
@@ -36,7 +38,7 @@ export const PRODUCTS_KEY = 'ai-chat:products:v2';
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 function parseRecord(raw: unknown): ProductRecord | null {
-  if (!isObj(raw) || typeof raw.productId !== 'string' || (raw.status !== 'DRAFT' && raw.status !== 'PENDING_APPROVAL')) return null;
+  if (!isObj(raw) || typeof raw.productId !== 'string' || (raw.status !== 'DRAFT' && raw.status !== 'PENDING_APPROVAL' && raw.status !== 'REJECTED')) return null;
   const values = parseProductForm(raw.values);
   if (!values) return null;
   const record: ProductRecord = {
@@ -102,7 +104,7 @@ export class MockProductApi implements ProductApi {
 
     const name = values.productName.trim();
     if (status === 'PENDING_APPROVAL') {
-      const duplicate = products.some((p) => p.productId !== productId && p.status !== 'DRAFT' && p.aspId === values.aspId && p.productName.toLowerCase() === name.toLowerCase());
+      const duplicate = products.some((p) => p.productId !== productId && p.status === 'PENDING_APPROVAL' && p.aspId === values.aspId && p.productName.toLowerCase() === name.toLowerCase());
       if (duplicate) throw new ProductApiError(`A product named “${name}” already exists under ${values.aspId}.`, 409, 'DUPLICATE_PRODUCT');
     }
 
@@ -131,6 +133,15 @@ export class MockProductApi implements ProductApi {
 
   saveDraft(values: ProductForm, options: ProductSaveOptions = {}) {
     return this.write(values, 'DRAFT', options);
+  }
+
+  async deleteProduct(productId: string, { signal }: { signal?: AbortSignal } = {}): Promise<void> {
+    await this.wait(signal, Math.min(this.latencyMs, 250));
+    const products = this.load();
+    const existing = products.find((p) => p.productId === productId);
+    if (!existing) throw new ProductApiError(`Product ${productId} was not found.`, 404, 'NOT_FOUND');
+    if (existing.status !== 'DRAFT') throw new ProductApiError(`Product ${productId} was already submitted and can't be deleted.`, 409, 'ALREADY_SUBMITTED');
+    this.save(products.filter((p) => p.productId !== productId));
   }
 
   async getProduct(productId: string, { signal }: { signal?: AbortSignal } = {}): Promise<ProductRecord | null> {

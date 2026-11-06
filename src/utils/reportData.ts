@@ -1,7 +1,7 @@
 import { CURRENCIES, SCHEMES } from '../services/productCatalog';
 import type { ProductRecord } from '../types/product';
 import type { ProductGroupBy, ReportChart, TxnMetric, TxnRange, TxnView } from '../types/report';
-import { PER_USD, schemeName, titleCase } from './productDraft';
+import { PER_USD, PRODUCT_STATUS_LABELS, schemeName, titleCase } from './productDraft';
 
 /*
  * Reporting data. Everything here is generated in the browser: a fixed demo portfolio of card products
@@ -87,7 +87,7 @@ export const GROUPINGS: Record<ProductGroupBy, Grouping> = {
 /** The groupings a chart type offers: categories for pie and bar charts, binned numbers for histograms. */
 export const groupingsFor = (chart: ReportChart) => (Object.keys(GROUPINGS) as ProductGroupBy[]).filter((g) => (GROUPINGS[g].kind === 'numeric') === (chart === 'histogram'));
 
-export type ProductStatusLabel = 'Active' | 'Pending approval' | 'Draft' | 'Inactive';
+export type ProductStatusLabel = 'Active' | 'Pending approval' | 'Draft' | 'Rejected' | 'Inactive';
 
 /** One product as the report sees it. */
 export interface ReportProduct {
@@ -147,7 +147,7 @@ export function fromRecord(record: ProductRecord): ReportProduct {
     currency: v.currency,
     productType: v.productType ? titleCase(v.productType) : 'Not set',
     marketSegment: titleCase(v.marketSegment),
-    status: record.status === 'DRAFT' ? 'Draft' : 'Pending approval',
+    status: PRODUCT_STATUS_LABELS[record.status],
     liveFrom: new Date(`${v.effectiveDate}T00:00:00`),
     validityYears: v.validityYears ?? 0,
     annualFeeUsd: Math.round((annual / (PER_USD[v.currency] ?? 1)) * 100) / 100,

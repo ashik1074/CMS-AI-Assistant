@@ -77,32 +77,37 @@ interface TextFieldProps {
   disabled?: boolean;
   className?: string;
   uppercase?: boolean;
+  /** Hides the "used / max" counter. */
+  hideCounter?: boolean;
 }
 
-export function TextField({ label, value, onChange, type = 'text', placeholder, maxLength, min, disabled, uppercase, ...shell }: TextFieldProps) {
-  const counter = maxLength ? (
-    <span className="text-[11px] tabular-nums text-zinc-400" aria-hidden="true">
-      {value.length}/{maxLength}
-    </span>
-  ) : undefined;
+export function TextField({ label, value, onChange, type = 'text', placeholder, maxLength, min, disabled, uppercase, hideCounter, ...shell }: TextFieldProps) {
+  const counted = !!maxLength && !hideCounter;
   return (
-    <Field label={label} aside={counter} {...shell}>
+    <Field label={label} {...shell}>
       {({ id, describedBy, invalid }) => (
-        <input
-          id={id}
-          type={type}
-          value={value}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          min={min}
-          disabled={disabled}
-          aria-invalid={invalid}
-          aria-describedby={describedBy}
-          aria-required={shell.required}
-          autoComplete="off"
-          onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
-          className={inputClass}
-        />
+        <div className="relative">
+          <input
+            id={id}
+            type={type}
+            value={value}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            min={min}
+            disabled={disabled}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+            aria-required={shell.required}
+            autoComplete="off"
+            onChange={(e) => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
+            className={cn(inputClass, counted && 'pr-16')}
+          />
+          {counted && (
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs tabular-nums text-zinc-400" aria-hidden="true">
+              {value.length}/{maxLength}
+            </span>
+          )}
+        </div>
       )}
     </Field>
   );

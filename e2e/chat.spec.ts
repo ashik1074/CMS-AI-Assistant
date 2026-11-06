@@ -25,7 +25,7 @@ test('sends a message and streams the response progressively', async ({ page }) 
   page.on('request', (r) => {
     if (!r.url().startsWith('http://localhost:4173')) external.push(r.url());
   });
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await expect(page.getByRole('heading', { name: 'What can I help you with?' })).toBeVisible();
 
   await composer(page).fill('Write a detailed guide about accessibility');
@@ -49,7 +49,7 @@ test('sends a message and streams the response progressively', async ({ page }) 
 });
 
 test('stop generation keeps partial text and allows continuing', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await composer(page).fill('Write a detailed guide about accessibility');
   await composer(page).press('Enter');
   await expect(lastAssistant(page)).toHaveAttribute('data-status', 'streaming', { timeout: 10_000 });
@@ -64,7 +64,7 @@ test('stop generation keeps partial text and allows continuing', async ({ page }
 });
 
 test('conversations persist after reload; deleted ones stay deleted', async ({ page, isMobile }) => {
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await composer(page).fill('Hello');
   await composer(page).press('Enter');
   await expect(lastAssistant(page)).toHaveAttribute('data-status', 'completed', { timeout: 10_000 });
@@ -91,7 +91,7 @@ test('conversations persist after reload; deleted ones stay deleted', async ({ p
 });
 
 test('untrusted input cannot execute scripts', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await composer(page).fill('<img src=x onerror="alert(1)"><script>alert(2)</script> [x](javascript:alert(3))');
   await composer(page).press('Enter');
   await expect(lastAssistant(page)).toHaveAttribute('data-status', 'completed', { timeout: 10_000 });
@@ -101,13 +101,13 @@ test('untrusted input cannot execute scripts', async ({ page }) => {
 
 test('corrupted storage does not crash the app', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('ai-chat:conversations:v1', '{{{not json'));
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await expect(page.getByRole('heading', { name: 'What can I help you with?' })).toBeVisible();
   await expect(page.getByText(/corrupted and has been reset/)).toBeVisible();
 });
 
 test('simulated failure shows an error with retry', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await composer(page).fill('Simulate an error');
   await composer(page).press('Enter');
   await expect(lastAssistant(page)).toHaveAttribute('data-status', 'failed', { timeout: 10_000 });
@@ -115,7 +115,7 @@ test('simulated failure shows an error with retry', async ({ page }) => {
 });
 
 test("dark theme applies from settings", async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await page.getByTestId('user-menu').click();
   await page.getByRole('menuitem', { name: 'Settings' }).click();
   await page.getByRole('dialog', { name: 'Settings' }).getByText('Dark', { exact: true }).click();
@@ -128,7 +128,7 @@ test("dark theme applies from settings", async ({ page }) => {
 });
 
 test('layout has no horizontal overflow and the composer stays visible', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await composer(page).fill('Compare REST, GraphQL and gRPC in a table');
   await composer(page).press('Enter');
   await expect(lastAssistant(page)).toHaveAttribute('data-status', 'completed', { timeout: 15_000 });
@@ -139,7 +139,7 @@ test('layout has no horizontal overflow and the composer stays visible', async (
 
 test('mobile drawer opens and closes', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile only');
-  await page.goto('/');
+  await page.goto('/#/assistant');
   const drawer = page.getByTestId('sidebar-drawer');
   await expect(drawer).not.toBeInViewport();
   await page.getByRole('button', { name: 'Open sidebar' }).click();
@@ -149,7 +149,7 @@ test('mobile drawer opens and closes', async ({ page, isMobile }) => {
 });
 
 test('keyboard: Enter sends, Shift+Enter adds a newline, Tab reaches controls', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/assistant');
   await composer(page).focus();
   await page.keyboard.type('one');
   await page.keyboard.press('Shift+Enter');
@@ -157,4 +157,34 @@ test('keyboard: Enter sends, Shift+Enter adds a newline, Tab reaches controls', 
   await expect(composer(page)).toHaveValue('one\ntwo');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('user-message')).toHaveText('one\ntwo');
+});
+
+test('opens on the Product List and creates a product through the Product Setup form', async ({ page, isMobile }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Product List' })).toBeVisible();
+  await expect(page.getByTestId('welcome-screen')).toHaveCount(0);
+
+  await page.getByRole('link', { name: 'Product Setup' }).click();
+  await page.getByLabel(/^Product Name/).fill('E2E Product');
+  await page.getByLabel(/^Market Segment/).selectOption('CONSUMER');
+  await page.getByLabel(/^Product Type/).selectOption('DEBIT');
+  await page.getByLabel(/^Account Currency/).selectOption('BDT');
+  await page.getByLabel(/^Card Validity/).selectOption('5');
+  await page.getByLabel(/^Live From/).fill('2030-01-15');
+  const next = page.getByRole('button', { name: 'Next Step' });
+  for (let i = 0; i < 5; i++) await next.click();
+
+  const scheme = page.getByTestId('scheme-config');
+  await scheme.getByRole('combobox', { name: 'Scheme' }).selectOption({ label: 'VISA' });
+  await scheme.getByLabel(/^Named card template/).selectOption({ label: 'Visa Classic Named' });
+  await scheme.getByLabel('BIN', { exact: true }).selectOption({ label: 'Visa Classic BIN 421234' });
+  await scheme.getByLabel('BIN range').selectOption({ label: 'Range 0000000 to 4999999' });
+  await next.click();
+  await page.getByRole('button', { name: 'Submit Product' }).click();
+
+  await expect(page.getByRole('row', { name: /E2E Product/ })).toContainText('Pending approval');
+
+  if (isMobile) await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('link', { name: 'AI Assistant' }).click();
+  await expect(page.getByRole('heading', { name: 'What can I help you with?' })).toBeVisible();
 });

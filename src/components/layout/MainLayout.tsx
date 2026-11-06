@@ -79,7 +79,7 @@ export function MainLayout({ sidebar, header, children, mobile, sidebarOpen, onC
   };
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-zinc-50 dark:bg-zinc-900">
+    <div className="flex h-full w-full overflow-hidden bg-zinc-50 dark:bg-zinc-900">
       {mobile ? (
         <>
           <div
