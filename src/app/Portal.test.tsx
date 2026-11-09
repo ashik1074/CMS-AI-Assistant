@@ -1,7 +1,9 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
+import type { AIService } from '../types/chat';
 import { LocalConversationService } from '../services/conversationService';
+import { MockAIService } from '../services/mockAIService';
 import { seedDemoProducts } from '../services/demoProducts';
 import { MockProductApi, PRODUCTS_KEY } from '../services/productService';
 import { App } from './App';
@@ -29,7 +31,7 @@ async function fillBasics(user: ReturnType<typeof userEvent.setup>, name: string
 
 const next = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: 'Next Step' }));
 
-describe('Portal', () => {
+describe('Portal', { timeout: 30000 }, () => {
   it('lands on the Product List, with the sidebar links and the assistant one click away', async () => {
     const { user } = setup({ seeded: true });
     expect(screen.getByRole('heading', { name: 'Product List' })).toBeInTheDocument();
@@ -170,9 +172,110 @@ describe('Portal', () => {
     expect(await screen.findByRole('heading', { name: 'Product List' })).toBeInTheDocument();
   });
 
+  it('offers AI help on form fields: auto-fill with undo, and questions with a value to apply', async () => {
+    const { user } = setup();
+    await user.click(screen.getByRole('link', { name: 'Product Setup' }));
+    const page = await screen.findByTestId('product-setup-page');
+    await user.selectOptions(screen.getByLabelText(/^Product Type/), 'PREPAID');
+
+    const name = screen.getByLabelText(/^Product Name/);
+    await user.click(name);
+    await user.click(within(page).getByRole('button', { name: 'AI help for Product Name' }));
+    await user.click(screen.getByRole('menuitem', { name: /Auto-fill this field/ }));
+    expect(name).toHaveValue('Consumer Prepaid Card');
+    expect(name).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(name).toHaveValue('');
+
+    const validity = screen.getByLabelText(/^Card Validity/);
+    await user.click(validity);
+    await user.click(within(page).getByRole('button', { name: 'AI help for Card Validity Duration (in years)' }));
+    await user.click(screen.getByRole('menuitem', { name: /Ask AI about this field/ }));
+    const panel = screen.getByRole('dialog', { name: 'Ask AI about Card Validity Duration (in years)' });
+    expect(panel).toHaveTextContent('Current value: empty');
+    await user.type(within(panel).getByRole('textbox', { name: /^Ask about/ }), 'What should I enter?{Enter}');
+    const apply = await within(panel).findByRole('button', { name: 'Use this value' }, { timeout: 4000 });
+    expect(within(panel).getByTestId('field-assist-answer')).toHaveTextContent('I suggest 3 years.');
+    await user.click(apply);
+    expect(validity).toHaveValue('3');
+    expect(screen.queryByRole('dialog', { name: /Ask AI/ })).not.toBeInTheDocument();
+
+    // Escape closes the menu and returns to the AI button.
+    await user.click(validity);
+    const button = within(page).getByRole('button', { name: 'AI help for Card Validity Duration (in years)' });
+    await user.click(button);
+    expect(screen.getByRole('menuitem', { name: /Auto-fill this field/ })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(button).toHaveFocus();
+  });
+
   it('does not reseed sample products once the list has been emptied', () => {
     localStorage.setItem(PRODUCTS_KEY, '[]');
     seedDemoProducts(localStorage);
     expect(localStorage.getItem(PRODUCTS_KEY)).toBe('[]');
+  });
+});
+
+/** The real mock AI with tiny delays, so chat tests run quickly. */
+function fastService(): AIService {
+  const base = new MockAIService();
+  const opts = { chunkDelayMs: 1, minThinkingMs: 10, stepDurationMs: 5, chunkSize: 20 };
+  return {
+    streamResponse: (r, o) => base.streamResponse(r, { ...o, ...opts }),
+    generateResponse: (r, o) => base.generateResponse(r, { ...o, ...opts }),
+    cancelGeneration: (id) => base.cancelGeneration(id),
+  };
+}
+
+describe('AI Assistant popup', { timeout: 30000 }, () => {
+  const popup = () => screen.getByRole('dialog', { name: 'AI Assistant' });
+  const card = () => within(popup()).getByTestId('product-setup');
+
+  it('opens the assistant over the Product List, does agentic work there, and closes with the X', async () => {
+    const user = userEvent.setup();
+    render(<App aiService={fastService()} conversationService={new LocalConversationService(localStorage)} productApi={new MockProductApi(localStorage, 5)} productPrepareDelayMs={50} />);
+    expect(await screen.findByText('No products yet.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open AI Assistant' }));
+    expect(within(popup()).getByRole('heading', { name: 'What can I help you with?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close AI Assistant' })).toHaveAttribute('aria-expanded', 'true');
+    const composer = within(popup()).getByRole('textbox', { name: 'Message AI Assistant' });
+    await waitFor(() => expect(composer).toHaveFocus());
+
+    // The same agentic product creation as on the assistant page.
+    await user.type(composer, 'Create a product named Popup Saver{Enter}');
+    await waitFor(() => expect(card()).toHaveAttribute('data-status', 'collecting'), { timeout: 4000 });
+    await user.selectOptions(within(card()).getByLabelText(/^Product type/), 'DEBIT');
+    await user.selectOptions(within(card()).getByLabelText(/^Account currency/), 'BDT');
+    await user.selectOptions(within(card()).getByLabelText(/^Market segment/), 'CONSUMER');
+    await user.click(within(card()).getByRole('button', { name: /Continue/ }));
+    await waitFor(() => expect(card()).toHaveAttribute('data-status', 'pending'), { timeout: 4000 });
+    await user.click(within(card()).getByRole('button', { name: 'Save as Draft' }));
+    await waitFor(() => expect(card()).toHaveAttribute('data-status', 'draft'), { timeout: 4000 });
+    // The page behind stays on the Product List.
+    expect(window.location.hash).toBe('');
+
+    await user.click(screen.getByRole('button', { name: 'Close AI Assistant' }));
+    expect(screen.queryByRole('dialog', { name: 'AI Assistant' })).not.toBeInTheDocument();
+    // The list now shows the draft made in the chat.
+    expect(await screen.findByRole('link', { name: 'Popup Saver' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Open AI Assistant' })).toHaveFocus());
+
+    // Reopening continues the same chat, and Escape closes it.
+    await user.click(screen.getByRole('button', { name: 'Open AI Assistant' }));
+    expect(card()).toHaveAttribute('data-status', 'draft');
+    await waitFor(() => expect(within(popup()).getByRole('textbox', { name: 'Message AI Assistant' })).toHaveFocus());
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'AI Assistant' })).not.toBeInTheDocument();
+  });
+
+  it('shows the AI Assistant button only on the Product List', async () => {
+    const user = userEvent.setup();
+    render(<App conversationService={new LocalConversationService(localStorage)} productApi={new MockProductApi(localStorage, 1)} />);
+    expect(screen.getByRole('button', { name: 'Open AI Assistant' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Product Setup' }));
+    await screen.findByTestId('product-setup-page');
+    expect(screen.queryByRole('button', { name: 'Open AI Assistant' })).not.toBeInTheDocument();
   });
 });

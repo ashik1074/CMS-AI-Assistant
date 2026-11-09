@@ -35,9 +35,10 @@ import { DraftProductPage, ProductDetailsPage } from '../components/products/Pro
 import { PORTAL_NAME, PortalShell } from '../components/portal/PortalShell';
 import { ProductListPage } from '../components/portal/ProductListPage';
 import { ProductWizard } from '../components/portal/ProductWizard';
+import { AssistantLauncher, AssistantPopup } from '../components/portal/AssistantPopup';
 import type { ProductRecord } from '../types/product';
 import { blankProductForm } from '../utils/productDraft';
-import { isProductRoute, useHashRoute } from './routes';
+import { isProductRoute, useHashRoute, type Route } from './routes';
 import { DEFAULT_USER, type CurrentUser } from '../config/currentUser';
 
 export interface AppProps {
@@ -91,9 +92,28 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
   const toast = useToast();
   const onSettingsSaveError = useCallback(() => toast.show("Preferences couldn't be saved in this browser.", { kind: 'error' }), [toast]);
   const { settings, update: updateSettings, reset: resetSettings, toggleTheme } = useSettings(onSettingsSaveError);
-  const { route, navigate } = useHashRoute();
+  const { route: urlRoute, navigate: navigateUrl } = useHashRoute();
   const mobile = useMediaQuery('(max-width: 767px)');
   const inputRef = useRef<ChatInputHandle>(null);
+
+  /** The AI Assistant popup on the Product List. It keeps its own chat route, so the page behind it stays where it is. */
+  const [popupOpen, setPopupOpen] = useState(false);
+  const [popupRoute, setPopupRoute] = useState<Route>({ name: 'home' });
+  /** Reloads the Product List after the popup closes, to show products created in the chat. */
+  const [listVersion, setListVersion] = useState(0);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  // Leaving the Product List, for example through a product link in the chat, closes the popup.
+  if (popupOpen && urlRoute.name !== 'productList') setPopupOpen(false);
+  const popup = popupOpen && urlRoute.name === 'productList';
+  /** The route the chat works with: the popup's own, or the page's. */
+  const route = popup ? popupRoute : urlRoute;
+  const navigate = useCallback(
+    (next: Route, options?: { replace?: boolean }) => {
+      if (popup && !isProductRoute(next)) setPopupRoute(next);
+      else navigateUrl(next, options);
+    },
+    [popup, navigateUrl],
+  );
 
   const onStorageError = useCallback((e: StorageError) => toast.show(e.message, { kind: 'error' }), [toast]);
   const store = useConversations(conversationService, onStorageError);
@@ -200,6 +220,18 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
   }, [active, route.name, activeProject, productPageTitle]);
 
   const focusComposer = useCallback(() => requestAnimationFrame(() => inputRef.current?.focus()), []);
+
+  const openPopup = useCallback(() => {
+    setPopupOpen(true);
+    setDrawerOpen(false);
+    focusComposer();
+  }, [focusComposer]);
+  const closePopup = useCallback(() => {
+    setPopupOpen(false);
+    setDrawerOpen(false);
+    setListVersion((v) => v + 1);
+    requestAnimationFrame(() => launcherRef.current?.focus());
+  }, []);
 
   const newChat = useCallback(() => {
     navigate({ name: 'home' });
@@ -383,12 +415,104 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
   const openSidebar = useCallback(() => (mobile ? setDrawerOpen(true) : setDesktopSidebarOpen(true)), [mobile]);
   const sidebarOpen = mobile ? drawerOpen : desktopSidebarOpen;
 
+  const assistantView = (
+    <MainLayout
+      mobile={mobile}
+      sidebarOpen={sidebarOpen}
+      onCloseSidebar={closeSidebar}
+      sidebarWidth={sidebarWidth}
+      onSidebarWidthChange={setSidebarWidth}
+      sidebar={
+        <Sidebar
+          conversations={store.conversations}
+          projects={projects.projects}
+          activeId={activeId}
+          activeProjectId={activeProject?.id ?? null}
+          libraryActive={route.name === 'library'}
+          onMoveToProject={setMoveConversationId}
+          onRemoveFromProject={(id) => moveConversation(id, null)}
+          onOpenLibrary={openLibrary}
+          onOpenProject={openProject}
+          onNewProject={() => {
+            setDrawerOpen(false);
+            setProjectDialog({ mode: 'create' });
+          }}
+          isGenerating={chat.isGenerating}
+          onSelect={selectConversation}
+          onNewChat={newChat}
+          onRename={store.rename}
+          onDelete={requestDelete}
+          onOpenSettings={() => {
+            setDrawerOpen(false);
+            setSettingsOpen(true);
+          }}
+          onClose={closeSidebar}
+          mobile={mobile}
+        />
+      }
+      header={
+        <Header
+          title={active?.title}
+          project={active && activeProject ? { name: activeProject.name, onOpen: () => openProject(activeProject.id) } : undefined}
+          sidebarVisible={sidebarOpen}
+          mobile={mobile}
+          theme={settings.theme}
+          user={user}
+          onOpenSidebar={openSidebar}
+          onOpenPortalNav={mobile && !popup ? () => setPortalNavOpen(true) : undefined}
+          onNewChat={newChat}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleTheme={toggleTheme}
+          onShare={active?.messages.length ? () => setShareConversationId(active.id) : undefined}
+          shareDisabled={generating}
+        />
+      }
+    >
+      {route.name === 'shared' ? (
+        <SharedChatView key={route.payload} payload={route.payload} onContinue={continueSharedChat} onNewChat={newChat} />
+      ) : route.name === 'library' ? (
+        <LibraryView conversations={store.conversations} onOpenChat={selectConversation} />
+      ) : route.name === 'project' ? (
+        <ProjectView
+          key={route.projectId}
+          project={activeProject}
+          conversations={store.conversations.filter((c) => c.projectId === route.projectId)}
+          inputRef={inputRef}
+          onStartChat={startProjectChat}
+          onOpenChat={selectConversation}
+          onRemoveChat={(id) => moveConversation(id, null)}
+          onAddChats={() => setAddChatsOpen(true)}
+          onEdit={() => setProjectDialog({ mode: 'edit', projectId: route.projectId })}
+          onDelete={requestDeleteProject}
+          onNewChat={newChat}
+        />
+      ) : (
+        <ChatContainer
+          conversation={active}
+          missing={missing}
+          generating={generating}
+          inputRef={inputRef}
+          onSend={send}
+          onStop={stop}
+          onRegenerate={regenerate}
+          onEditSubmit={editSubmit}
+          onFeedback={feedback}
+          onNewChat={newChat}
+          productSetup={productSetup.handlers}
+          reports={reports}
+          mascotRideMs={mascotRideMs}
+        />
+      )}
+    </MainLayout>
+  );
+
   return (
     <>
-      <PortalShell section={isProductRoute(route) ? 'products' : 'assistant'} mobile={mobile} theme={settings.theme} user={user} onToggleTheme={toggleTheme} onOpenSettings={() => setSettingsOpen(true)} drawerOpen={portalNavOpen} onDrawerOpenChange={setPortalNavOpen}>
-      {route.name === 'productList' ? (
-        <ProductListPage api={productApi} />
-      ) : route.name === 'productNew' ? (
+      <div className="contents" inert={popup}>
+      <PortalShell section={isProductRoute(urlRoute) ? 'products' : 'assistant'} mobile={mobile} theme={settings.theme} user={user} onToggleTheme={toggleTheme} onOpenSettings={() => setSettingsOpen(true)} drawerOpen={portalNavOpen} onDrawerOpenChange={setPortalNavOpen}>
+      {urlRoute.name === 'productList' ? (
+        <ProductListPage key={listVersion} api={productApi} />
+      ) : urlRoute.name === 'productNew' ? (
         <ProductWizard
           api={productApi}
           title="Create Product"
@@ -399,101 +523,22 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
           onSaved={newProductSaved}
           onSubmitted={newProductSubmitted}
         />
-      ) : route.name === 'product' ? (
-        <ProductDetailsPage api={productApi} productId={route.productId} />
-      ) : route.name === 'productDraft' ? (
-        <DraftProductPage api={productApi} productId={route.productId} userName={user.name} onSaved={draftPageSaved} onSubmitted={draftPageSubmitted} onCancel={backToProducts} />
+      ) : urlRoute.name === 'product' ? (
+        <ProductDetailsPage api={productApi} productId={urlRoute.productId} />
+      ) : urlRoute.name === 'productDraft' ? (
+        <DraftProductPage api={productApi} productId={urlRoute.productId} userName={user.name} onSaved={draftPageSaved} onSubmitted={draftPageSubmitted} onCancel={backToProducts} />
       ) : (
-      <MainLayout
-        mobile={mobile}
-        sidebarOpen={sidebarOpen}
-        onCloseSidebar={closeSidebar}
-        sidebarWidth={sidebarWidth}
-        onSidebarWidthChange={setSidebarWidth}
-        sidebar={
-          <Sidebar
-            conversations={store.conversations}
-            projects={projects.projects}
-            activeId={activeId}
-            activeProjectId={activeProject?.id ?? null}
-            libraryActive={route.name === 'library'}
-            onMoveToProject={setMoveConversationId}
-            onRemoveFromProject={(id) => moveConversation(id, null)}
-            onOpenLibrary={openLibrary}
-            onOpenProject={openProject}
-            onNewProject={() => {
-              setDrawerOpen(false);
-              setProjectDialog({ mode: 'create' });
-            }}
-            isGenerating={chat.isGenerating}
-            onSelect={selectConversation}
-            onNewChat={newChat}
-            onRename={store.rename}
-            onDelete={requestDelete}
-            onOpenSettings={() => {
-              setDrawerOpen(false);
-              setSettingsOpen(true);
-            }}
-            onClose={closeSidebar}
-            mobile={mobile}
-          />
-        }
-        header={
-          <Header
-            title={active?.title}
-            project={active && activeProject ? { name: activeProject.name, onOpen: () => openProject(activeProject.id) } : undefined}
-            sidebarVisible={sidebarOpen}
-            mobile={mobile}
-            theme={settings.theme}
-            user={user}
-            onOpenSidebar={openSidebar}
-            onOpenPortalNav={mobile ? () => setPortalNavOpen(true) : undefined}
-            onNewChat={newChat}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onToggleTheme={toggleTheme}
-            onShare={active?.messages.length ? () => setShareConversationId(active.id) : undefined}
-            shareDisabled={generating}
-          />
-        }
-      >
-        {route.name === 'shared' ? (
-          <SharedChatView key={route.payload} payload={route.payload} onContinue={continueSharedChat} onNewChat={newChat} />
-        ) : route.name === 'library' ? (
-          <LibraryView conversations={store.conversations} onOpenChat={selectConversation} />
-        ) : route.name === 'project' ? (
-          <ProjectView
-            key={route.projectId}
-            project={activeProject}
-            conversations={store.conversations.filter((c) => c.projectId === route.projectId)}
-            inputRef={inputRef}
-            onStartChat={startProjectChat}
-            onOpenChat={selectConversation}
-            onRemoveChat={(id) => moveConversation(id, null)}
-            onAddChats={() => setAddChatsOpen(true)}
-            onEdit={() => setProjectDialog({ mode: 'edit', projectId: route.projectId })}
-            onDelete={requestDeleteProject}
-            onNewChat={newChat}
-          />
-        ) : (
-          <ChatContainer
-            conversation={active}
-            missing={missing}
-            generating={generating}
-            inputRef={inputRef}
-            onSend={send}
-            onStop={stop}
-            onRegenerate={regenerate}
-            onEditSubmit={editSubmit}
-            onFeedback={feedback}
-            onNewChat={newChat}
-            productSetup={productSetup.handlers}
-            reports={reports}
-            mascotRideMs={mascotRideMs}
-          />
-        )}
-      </MainLayout>
+        assistantView
       )}
       </PortalShell>
+      </div>
+
+      {popup && (
+        <AssistantPopup onClose={closePopup} escapeCloses={!(mobile && drawerOpen)}>
+          {assistantView}
+        </AssistantPopup>
+      )}
+      {urlRoute.name === 'productList' && <AssistantLauncher open={popup} onToggle={popup ? closePopup : openPopup} buttonRef={launcherRef} />}
 
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="live-region">
         {chat.announcement}

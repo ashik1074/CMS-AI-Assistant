@@ -3,6 +3,7 @@ import { SCHEMES } from '../../services/productCatalog';
 import type { SchemeConfig, SchemeRangeRow } from '../../types/product';
 import { cn } from '../../utils/cn';
 import { binsForScheme, emptyScheme, rangesForBin, schemeName, templatesFor, type ProductErrors } from '../../utils/productDraft';
+import { FieldAssist } from './FieldAssist';
 import { AddIcon, Field, inputClass, RowButton } from './productFields';
 
 interface SchemeConfigSectionProps {
@@ -22,15 +23,7 @@ export function SchemeConfigSection({ schemes, onChange, errors, disabled }: Sch
     <div className="space-y-3" data-testid="scheme-config">
       <p className="text-xs text-zinc-500 dark:text-zinc-400">Choose these yourself. The assistant doesn&apos;t pre-select schemes, BINs, card ranges or card templates.</p>
       {schemes.map((scheme, i) => (
-        <SchemeBlock
-          key={i}
-          index={i}
-          scheme={scheme}
-          onChange={(next) => update(i, next)}
-          onRemove={schemes.length > 1 ? () => onChange(schemes.filter((_, j) => j !== i)) : undefined}
-          errors={errors}
-          disabled={disabled}
-        />
+        <SchemeBlock key={i} index={i} scheme={scheme} onChange={(next) => update(i, next)} onRemove={schemes.length > 1 ? () => onChange(schemes.filter((_, j) => j !== i)) : undefined} errors={errors} disabled={disabled} />
       ))}
       {errors.schemes && <p className="text-xs text-red-600 dark:text-red-400">{errors.schemes}</p>}
       <RowButton onClick={() => onChange([...schemes, emptyScheme()])} disabled={disabled}>
@@ -77,7 +70,7 @@ function SchemeBlock({ index, scheme, onChange, onRemove, errors, disabled }: Sc
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Scheme" required error={err('schemeId')}>
+        <Field label="Scheme" required error={err('schemeId')} assistKey={`schemes.${index}.schemeId`}>
           {({ id, describedBy, invalid }) => (
             <select
               id={id}
@@ -99,7 +92,7 @@ function SchemeBlock({ index, scheme, onChange, onRemove, errors, disabled }: Sc
             </select>
           )}
         </Field>
-        <Field label="Named card template" required>
+        <Field label="Named card template" required assistKey={`schemes.${index}.namedTemplateId`}>
           {({ id, describedBy }) => (
             <select
               id={id}
@@ -119,7 +112,7 @@ function SchemeBlock({ index, scheme, onChange, onRemove, errors, disabled }: Sc
             </select>
           )}
         </Field>
-        <Field label="Anonymous card template" required>
+        <Field label="Anonymous card template" required assistKey={`schemes.${index}.anonymousTemplateId`}>
           {({ id, describedBy }) => (
             <select
               id={id}
@@ -144,8 +137,8 @@ function SchemeBlock({ index, scheme, onChange, onRemove, errors, disabled }: Sc
         Select at least one Named Card or Anonymous Card template.
       </p>
 
-      <div className="mt-3 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-        <div className="hidden grid-cols-[1fr_1.6fr_auto] bg-zinc-50 text-xs font-medium text-zinc-600 sm:grid dark:bg-zinc-800/60 dark:text-zinc-300" aria-hidden="true">
+      <div className="mt-3 rounded-lg border border-zinc-200 dark:border-zinc-700">
+        <div className="hidden grid-cols-[1fr_1.6fr_auto] rounded-t-lg bg-zinc-50 text-xs font-medium text-zinc-600 sm:grid dark:bg-zinc-800/60 dark:text-zinc-300" aria-hidden="true">
           <span className="px-3 py-2">
             BIN <span className="text-red-600 dark:text-red-400">*</span>
           </span>
@@ -159,52 +152,62 @@ function SchemeBlock({ index, scheme, onChange, onRemove, errors, disabled }: Sc
           const rangeError = err(`ranges.${j}.cardRangeId`);
           return (
             <div key={j} className="grid grid-cols-1 gap-2 border-t border-zinc-200 p-2 first:border-t-0 sm:grid-cols-[1fr_1.6fr_auto] sm:gap-0 sm:p-0 dark:border-zinc-700" role="group" aria-label={`BIN row ${j + 1}`}>
-              <div className="sm:p-2">
+              <div className="group/field sm:p-2" data-assist-field="">
                 <label className="mb-1 block text-xs font-medium text-zinc-700 sm:sr-only dark:text-zinc-300" htmlFor={`scheme-${index}-bin-${j}`}>
                   BIN
                 </label>
-                <select
-                  id={`scheme-${index}-bin-${j}`}
-                  value={row.binId ?? ''}
-                  disabled={disabled || noScheme}
-                  aria-invalid={!!binError}
-                  aria-required
-                  onChange={(e) => setRow(j, { binId: toId(e.target.value), cardRangeId: null })}
-                  className={inputClass}
-                >
-                  <option value="">{noScheme ? 'Select a scheme first' : 'Choose BIN'}</option>
-                  {bins.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    id={`scheme-${index}-bin-${j}`}
+                    value={row.binId ?? ''}
+                    disabled={disabled || noScheme}
+                    aria-invalid={!!binError}
+                    aria-required
+                    onChange={(e) => setRow(j, { binId: toId(e.target.value), cardRangeId: null })}
+                    className={inputClass}
+                  >
+                    <option value="">{noScheme ? 'Select a scheme first' : 'Choose BIN'}</option>
+                    {bins.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldAssist fieldKey={`schemes.${index}.ranges.${j}.binId`} label="BIN" className="relative shrink-0" />
+                </div>
                 {binError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{binError}</p>}
               </div>
-              <div className="sm:border-l sm:border-zinc-200 sm:p-2 dark:sm:border-zinc-700">
+              <div className="group/field sm:border-l sm:border-zinc-200 sm:p-2 dark:sm:border-zinc-700" data-assist-field="">
                 <label className="mb-1 block text-xs font-medium text-zinc-700 sm:sr-only dark:text-zinc-300" htmlFor={`scheme-${index}-range-${j}`}>
                   BIN range
                 </label>
-                <select
-                  id={`scheme-${index}-range-${j}`}
-                  value={row.cardRangeId ?? ''}
-                  disabled={disabled || row.binId === null}
-                  aria-invalid={!!rangeError}
-                  aria-required
-                  onChange={(e) => setRow(j, { ...row, cardRangeId: toId(e.target.value) })}
-                  className={inputClass}
-                >
-                  <option value="">{row.binId === null ? 'Choose a BIN first' : 'Choose BIN range'}</option>
-                  {rangesForBin(row.binId).map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    id={`scheme-${index}-range-${j}`}
+                    value={row.cardRangeId ?? ''}
+                    disabled={disabled || row.binId === null}
+                    aria-invalid={!!rangeError}
+                    aria-required
+                    onChange={(e) => setRow(j, { ...row, cardRangeId: toId(e.target.value) })}
+                    className={inputClass}
+                  >
+                    <option value="">{row.binId === null ? 'Choose a BIN first' : 'Choose BIN range'}</option>
+                    {rangesForBin(row.binId).map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldAssist fieldKey={`schemes.${index}.ranges.${j}.cardRangeId`} label="BIN range" className="relative shrink-0" />
+                </div>
                 {rangeError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{rangeError}</p>}
               </div>
               <div className="flex items-start justify-end gap-1 sm:w-24 sm:justify-center sm:border-l sm:border-zinc-200 sm:p-2 sm:pt-3.5 dark:sm:border-zinc-700">
-                <IconSquare label={`Add a BIN row after row ${j + 1}`} disabled={disabled} onClick={() => onChange({ ...scheme, ranges: [...scheme.ranges.slice(0, j + 1), { binId: null, cardRangeId: null }, ...scheme.ranges.slice(j + 1)] })}>
+                <IconSquare
+                  label={`Add a BIN row after row ${j + 1}`}
+                  disabled={disabled}
+                  onClick={() => onChange({ ...scheme, ranges: [...scheme.ranges.slice(0, j + 1), { binId: null, cardRangeId: null }, ...scheme.ranges.slice(j + 1)] })}
+                >
                   <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 </IconSquare>
                 <IconSquare label={`Remove BIN row ${j + 1}`} disabled={disabled || scheme.ranges.length === 1} onClick={() => onChange({ ...scheme, ranges: scheme.ranges.filter((_, k) => k !== j) })}>

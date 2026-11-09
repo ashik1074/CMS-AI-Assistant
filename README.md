@@ -2,12 +2,18 @@
 
 A responsive chat app that looks and behaves like an LLM chat product. **No AI model, API key, backend, or network request is involved.** Every answer comes from a local mock response engine. The engine streams text, simulates thinking and multi-step progress, and can simulate failures.
 
+## Token usage
+
+Each response shows the tokens it used. While it is generating, a live counter shows the input tokens and the output tokens so far; when it finishes (or is stopped), the total appears next to the response actions, with the input and output split. The demo has no model, so the counts are estimates made in the browser (`src/utils/tokens.ts`) and are shown with a ~. A real backend can report its own counts in the `usage` field of the `started`, `completed` and `cancelled` events, and the app shows those instead.
+
 ## Portal
 
 The app opens on the **Product List** (`#/`), inside a portal with a dark sidebar: **AI Assistant** (`#/assistant`) and **Product Management → Product List**. A chat keeps generating while you browse the portal's other pages.
 
 - **Product List:** search by name, filter by status, and open a product. Drafts open in the form and can be deleted; other products open read-only. On first visit the list is filled with sample products (`src/services/demoProducts.ts`, called from `main.tsx`).
 - **Product Setup** (`#/products/new`): a step-by-step form (Basics → Policies → Permissions → Limits → Fees → Schemes → Preview & Submit). **Next Step** checks the current step, **Save and Exit** keeps a draft (it only needs a name), and **Submit Product** sends it for approval.
+- **AI Assistant popup:** the round button in the bottom-right corner of the Product List opens the AI Assistant full screen, over the list. Everything the assistant page does works there, including creating products and reports; the button turns into an X that closes the popup (Escape works too). The popup keeps its own chat, so the page behind stays on the Product List, and the list reloads when the popup closes.
+- **AI help on each field:** focus a field and a small AI button appears beside its label. **Auto-fill this field** picks a value from the rest of the form (with Undo), and **Ask AI about this field** answers questions about it and offers a value to apply. The answers come from local rules (`src/utils/fieldAssist.ts`), like the rest of the mock AI.
 
 The form and the chat's product card share their fields, validation and `ProductApi`, so a product from either one appears in the Product List.
 

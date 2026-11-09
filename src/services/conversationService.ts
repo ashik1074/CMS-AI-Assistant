@@ -107,6 +107,9 @@ function parseAction(raw: unknown): MessageAction | null {
 }
 
 /** Validates a stored message. In-flight messages are restored as cancelled — never as streaming. */
+/** A whole number of tokens. */
+const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+
 export function parseMessage(raw: unknown, conversationId: string): Message | null {
   if (!isObj(raw)) return null;
   if (!isStr(raw.id) || !raw.id || (raw.role !== 'user' && raw.role !== 'assistant') || !isStr(raw.content) || !isNum(raw.createdAt)) return null;
@@ -122,6 +125,9 @@ export function parseMessage(raw: unknown, conversationId: string): Message | nu
     status,
   };
   if (isNum(raw.durationMs) && raw.durationMs >= 0) message.durationMs = raw.durationMs;
+  if (isObj(raw.usage) && isCount(raw.usage.inputTokens) && isCount(raw.usage.outputTokens)) {
+    message.usage = { inputTokens: raw.usage.inputTokens, outputTokens: raw.usage.outputTokens, ...(raw.usage.estimated === true ? { estimated: true } : {}) };
+  }
   if (Array.isArray(raw.steps)) {
     const steps = raw.steps.map(parseStep).filter((s): s is ProcessingStep => s !== null);
     // An interrupted step must not look active after a reload.

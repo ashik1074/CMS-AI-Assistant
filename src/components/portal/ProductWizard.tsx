@@ -4,10 +4,13 @@ import { productErrorMessage } from '../../hooks/useProductSetup';
 import type { ProductApi } from '../../services/productService';
 import type { ProductForm, ProductRecord } from '../../types/product';
 import { cn } from '../../utils/cn';
+import { answerFieldQuestion, describeFieldValue, suggestField } from '../../utils/fieldAssist';
 import { stepOfKey, validateDraft, validateProduct, type ProductErrors, type ProductStep } from '../../utils/productDraft';
+import { FieldAssistContext, type FieldAssistApi } from '../agent/fieldAssistContext';
 import { SchemeConfigSection } from '../agent/SchemeConfigSection';
 import { BasicsStep, FeesStep, LimitsStep, PermissionsStep, PoliciesStep, ProductSummary, type StepProps } from '../agent/productSteps';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../common/toastContext';
 import { portalCardClass, PortalPageHeader } from './PortalPage';
 
 type WizardStep = ProductStep | 'review';
@@ -72,6 +75,28 @@ export function ProductWizard({ api, title, initialValues, productId, userName, 
   const stepHasErrors = (id: WizardStep) => id !== 'review' && checked.has(id) && Object.keys(allErrors).some((k) => stepOfKey(k) === id);
   const disabled = !!busy;
   const stepProps: StepProps = { form, setForm, errors, fromUser: useMemo(() => new Set(), []), disabled };
+  const toast = useToast();
+
+  /** The AI button on each field: fill it in, or answer questions about it, using the rest of the form as context. */
+  const assist = useMemo<FieldAssistApi>(
+    () => ({
+      disabled,
+      currentValue: (key) => describeFieldValue(form, key),
+      answer: (key, label, question) => answerFieldQuestion(form, key, label, question),
+      autofill: (key, label) => {
+        const s = suggestField(form, key);
+        if (!s.ok) {
+          toast.show(s.reason);
+          return false;
+        }
+        const before = form;
+        setForm(s.form);
+        toast.show(`AI filled ${label}: ${s.display}`, { kind: 'success', action: { label: 'Undo', onClick: () => setForm((current) => (current === s.form ? before : current)) } });
+        return true;
+      },
+    }),
+    [form, disabled, toast],
+  );
 
   const goTo = (next: number) => {
     setIndex(next);
@@ -172,7 +197,11 @@ export function ProductWizard({ api, title, initialValues, productId, userName, 
                           aria-current={current ? 'step' : undefined}
                           className={cn(
                             'flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm transition-colors disabled:cursor-not-allowed',
-                            current ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-200' : i > reached ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
+                            current
+                              ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-200'
+                              : i > reached
+                                ? 'text-zinc-400 dark:text-zinc-500'
+                                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
                             stepHasErrors(id) && !current && 'text-red-600 dark:text-red-400',
                           )}
                         >
@@ -193,42 +222,45 @@ export function ProductWizard({ api, title, initialValues, productId, userName, 
         </nav>
 
         <div className={cn(portalCardClass, 'flex flex-col md:min-h-0')}>
-          <div ref={bodyRef} className="portal-form min-h-0 flex-1 space-y-5 p-4 sm:p-7 md:overflow-y-auto">
-            {error && (
-              <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200" role="alert">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {step === 'basics' && bannerOpen && (
-              <div className="flex gap-3 rounded-lg border border-dashed border-brand-400 bg-brand-50/60 px-4 py-4 dark:bg-brand-500/10" data-testid="prerequisites">
-                <Info className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-300" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <h2 className="font-medium">Prerequisites Required</h2>
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                    Creating a product links various system configurations together. Please make sure your BINs, Schemes, Policies, Rewards, and Notification templates are already set up in the platform before continuing.
-                  </p>
+          <FieldAssistContext.Provider value={assist}>
+            <div ref={bodyRef} className="portal-form min-h-0 flex-1 space-y-5 p-4 sm:p-7 md:overflow-y-auto">
+              {error && (
+                <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200" role="alert">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{error}</span>
                 </div>
-                <button type="button" aria-label="Dismiss prerequisites" onClick={() => setBannerOpen(false)} className="h-fit rounded-md p-1 hover:bg-brand-100 dark:hover:bg-brand-500/20">
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-            )}
+              )}
 
-            {step === 'basics' && <BasicsStep {...stepProps} />}
-            {step === 'policies' && <PoliciesStep {...stepProps} />}
-            {step === 'permissions' && <PermissionsStep {...stepProps} />}
-            {step === 'limits' && <LimitsStep {...stepProps} />}
-            {step === 'fees' && <FeesStep {...stepProps} />}
-            {step === 'schemes' && <SchemeConfigSection schemes={form.schemes} onChange={(schemes) => setForm((f) => ({ ...f, schemes }))} errors={errors} disabled={disabled} />}
-            {review && (
-              <>
-                <p className="text-sm text-zinc-600 dark:text-zinc-300">Check the details below. Once submitted, the product waits for an approver and can no longer be edited.</p>
-                <ProductSummary form={form} />
-              </>
-            )}
-          </div>
+              {step === 'basics' && bannerOpen && (
+                <div className="flex gap-3 rounded-lg border border-dashed border-brand-400 bg-brand-50/60 px-4 py-4 dark:bg-brand-500/10" data-testid="prerequisites">
+                  <Info className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-300" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-medium">Prerequisites Required</h2>
+                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                      Creating a product links various system configurations together. Please make sure your BINs, Schemes, Policies, Rewards, and Notification templates are already set up in the
+                      platform before continuing.
+                    </p>
+                  </div>
+                  <button type="button" aria-label="Dismiss prerequisites" onClick={() => setBannerOpen(false)} className="h-fit rounded-md p-1 hover:bg-brand-100 dark:hover:bg-brand-500/20">
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+
+              {step === 'basics' && <BasicsStep {...stepProps} />}
+              {step === 'policies' && <PoliciesStep {...stepProps} />}
+              {step === 'permissions' && <PermissionsStep {...stepProps} />}
+              {step === 'limits' && <LimitsStep {...stepProps} />}
+              {step === 'fees' && <FeesStep {...stepProps} />}
+              {step === 'schemes' && <SchemeConfigSection schemes={form.schemes} onChange={(schemes) => setForm((f) => ({ ...f, schemes }))} errors={errors} disabled={disabled} />}
+              {review && (
+                <>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-300">Check the details below. Once submitted, the product waits for an approver and can no longer be edited.</p>
+                  <ProductSummary form={form} />
+                </>
+              )}
+            </div>
+          </FieldAssistContext.Provider>
 
           <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-4 py-3 sm:px-7 dark:border-zinc-800">
             {index > 0 ? (

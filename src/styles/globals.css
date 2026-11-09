@@ -520,3 +520,27 @@
 .portal-form select option {
   color: initial;
 }
+
+/* A field the AI just filled in glows briefly. */
+[data-ai-filled] :is(input, select) {
+  animation: ai-filled 1.2s ease-out;
+}
+@keyframes ai-filled {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px rgb(167 139 250 / 0.6);
+    border-color: #8b5cf6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ai-filled] :is(input, select) {
+    animation: none;
+  }
+}
+
+/* In the AI Assistant popup, the composer keeps clear of the close button in the bottom-right corner. */
+@media (max-width: 1279px) {
+  .assistant-popup form[aria-label='Send a message'] {
+    padding-right: 5rem;
+  }
+}

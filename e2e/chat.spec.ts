@@ -178,7 +178,7 @@ test('opens on the Product List and creates a product through the Product Setup 
   await scheme.getByRole('combobox', { name: 'Scheme' }).selectOption({ label: 'VISA' });
   await scheme.getByLabel(/^Named card template/).selectOption({ label: 'Visa Classic Named' });
   await scheme.getByLabel('BIN', { exact: true }).selectOption({ label: 'Visa Classic BIN 421234' });
-  await scheme.getByLabel('BIN range').selectOption({ label: 'Range 0000000 to 4999999' });
+  await scheme.getByLabel('BIN range', { exact: true }).selectOption({ label: 'Range 0000000 to 4999999' });
   await next.click();
   await page.getByRole('button', { name: 'Submit Product' }).click();
 

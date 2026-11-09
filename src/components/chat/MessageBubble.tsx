@@ -14,6 +14,7 @@ import type { ReportHandlers } from '../../hooks/useReports';
 import { Markdown } from './Markdown';
 import { ThinkingMascot } from '../mascot/ThinkingMascot';
 import { MessageActions } from './MessageActions';
+import { LiveTokenCount, TokenUsageBadge } from './TokenUsage';
 
 interface MessageBubbleProps {
   message: Message;
@@ -164,6 +165,7 @@ function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, rea
   const streaming = message.status === 'streaming';
   const inFlight = message.status === 'pending' || streaming;
   const showActions = !inFlight && message.status !== 'failed' && message.content.length > 0;
+  const showUsage = !inFlight && message.status !== 'failed' && !!message.usage;
 
   return (
     <article
@@ -194,6 +196,8 @@ function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, rea
           <CustomerLookupCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} />
         )}
 
+        {inFlight && <LiveTokenCount message={message} />}
+
         {message.status === 'cancelled' && (
           <p className={cn('text-sm italic text-zinc-500 dark:text-zinc-400', message.content && 'mt-2')}>
             {message.content ? 'Response stopped before completion.' : 'You stopped this response before it started.'}
@@ -211,7 +215,7 @@ function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, rea
           />
         )}
 
-        {(showActions || (message.revision ?? 0) > 0) && (
+        {(showActions || showUsage || (message.revision ?? 0) > 0) && (
           <div className="mt-2 flex items-center gap-2">
             {showActions && (
               <MessageActions
@@ -224,6 +228,7 @@ function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, rea
                 className="-ml-1.5"
               />
             )}
+            {showUsage && <TokenUsageBadge usage={message.usage!} />}
             {(message.revision ?? 0) > 0 && !inFlight && (
               <span className="text-xs text-zinc-400 dark:text-zinc-500" data-testid="regenerated-label">
                 Regenerated{message.revision! > 1 ? ` ×${message.revision}` : ''}

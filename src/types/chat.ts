@@ -30,6 +30,14 @@ export interface Attachment {
   previewUrl?: string;
 }
 
+/** Tokens a response used: the prompt and conversation sent to the model, and the text it generated. */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  /** Counted in the browser rather than reported by a model (always so in the demo). */
+  estimated?: boolean;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -51,6 +59,8 @@ export interface Message {
   mode?: ChatMode;
   /** Agentic task the assistant proposed in this response, e.g. a product waiting for approval. */
   action?: MessageAction;
+  /** Tokens used by an assistant response. While it is generating, only the input is known. */
+  usage?: TokenUsage;
 }
 
 /* ---------- Service contracts ---------- */
@@ -105,6 +115,8 @@ export interface StartedEvent extends BaseEvent {
   type: 'started';
   scenarioId: string;
   steps: { id: string; label: string }[];
+  /** Input tokens, known as soon as the request is read (output tokens are 0). */
+  usage?: TokenUsage;
 }
 export interface StepEvent extends BaseEvent {
   type: 'step_started' | 'step_completed';
@@ -120,10 +132,13 @@ export interface CompletedEvent extends BaseEvent {
   durationMs: number;
   /** Set when the response proposes an action for the user to review. */
   action?: MessageAction;
+  usage?: TokenUsage;
 }
 export interface CancelledEvent extends BaseEvent {
   type: 'cancelled';
   durationMs: number;
+  /** Tokens used up to the point the response was stopped. */
+  usage?: TokenUsage;
 }
 export interface ErrorEvent extends BaseEvent {
   type: 'error';

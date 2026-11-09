@@ -29,7 +29,7 @@ function setup(service: AIService = fastService()) {
 
 const composer = () => screen.getByRole('textbox', { name: 'Message AI Assistant' });
 const lastAssistant = () => screen.getAllByTestId('assistant-message').at(-1)!;
-const waitForStatus = (status: string) => waitFor(() => expect(lastAssistant()).toHaveAttribute('data-status', status), { timeout: 4000 });
+const waitForStatus = (status: string, timeout = 4000) => waitFor(() => expect(lastAssistant()).toHaveAttribute('data-status', status), { timeout });
 
 // These tests cover the AI Assistant; the portal's own pages are in Portal.test.tsx.
 beforeEach(() => {
@@ -124,6 +124,26 @@ describe('App', () => {
     await user.type(composer(), 'Hello{Enter}');
     await waitForStatus('completed');
   });
+
+  it('counts tokens live while a response is generated, then shows the total with input and output', async () => {
+    const { user } = setup(fastService({ chunkDelayMs: 15, chunkSize: 2 }));
+    await user.type(composer(), 'Write a detailed guide about accessibility{Enter}');
+    await waitForStatus('streaming');
+    /** The numbers in a token count, in order, e.g. "~41 in · ~12 out · ~53 tokens" → [41, 12, 53]. */
+    const numbers = (el: HTMLElement) => (el.textContent!.match(/[\d,]+/g) ?? []).map((n) => Number(n.replace(/,/g, '')));
+    const liveOutput = () => numbers(within(lastAssistant()).getByTestId('live-token-count'))[1];
+    const first = liveOutput();
+    await waitFor(() => expect(liveOutput()).toBeGreaterThan(first));
+    const [liveIn, liveOut, liveTotal] = numbers(within(lastAssistant()).getByTestId('live-token-count'));
+    expect(liveTotal).toBe(liveIn + liveOut);
+
+    await waitForStatus('completed', 20000);
+    expect(within(lastAssistant()).queryByTestId('live-token-count')).not.toBeInTheDocument();
+    const [total, input, output] = numbers(within(lastAssistant()).getByTestId('token-usage'));
+    expect(input).toBe(liveIn);
+    expect(total).toBe(input + output);
+    expect(output).toBeGreaterThan(100);
+  }, 30000);
 
   it('regenerates the latest response with a new generation', async () => {
     const { user } = setup();

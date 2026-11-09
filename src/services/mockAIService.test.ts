@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GenerationEvent, GenerationOptions, GenerationRequest } from '../types/chat';
 import { MockAIService } from './mockAIService';
+import { estimateInputTokens, estimateTokens } from '../utils/tokens';
 import { CAPABILITY_PROMPTS, FALLBACK_RESPONSE, matchScenario } from '../utils/mockResponses';
 
 const FAST: GenerationOptions = { chunkDelayMs: 0, minThinkingMs: 0, stepDurationMs: 0, chunkSize: 3 };
@@ -67,6 +68,17 @@ describe('MockAIService.streamResponse', () => {
     expect(done.type).toBe('completed');
     if (done.type === 'completed') expect(tokens.map((t) => (t.type === 'token' ? t.token : '')).join('')).toBe(done.content);
     expect(service.activeCount).toBe(0);
+  });
+
+  it('reports token usage: the input when it starts, and the input and output when it finishes', async () => {
+    const service = new MockAIService();
+    const history = [{ role: 'user' as const, content: 'Hello' }];
+    const events = await collect(service.streamResponse(req('Hello', { history }), FAST));
+    const started = events[0];
+    const done = events.at(-1)!;
+    if (started.type !== 'started' || done.type !== 'completed') throw new Error('unexpected events');
+    expect(started.usage).toMatchObject({ inputTokens: estimateInputTokens(history, 'Hello'), outputTokens: 0, estimated: true });
+    expect(done.usage).toEqual({ inputTokens: started.usage!.inputTokens, outputTokens: estimateTokens(done.content), estimated: true });
   });
 
   it('returns the honest fallback for unmatched prompts', async () => {

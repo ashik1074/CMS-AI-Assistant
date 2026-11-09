@@ -51,7 +51,7 @@ const TXN_OPTIONS = Object.entries(TXN_TYPES).map(([value, label]) => ({ value, 
 
 export function BasicsStep({ form, setForm, errors, fromUser, disabled }: StepProps) {
   const update = set(setForm);
-  const common = (key: ProductField) => ({ fromUser: fromUser.has(key), error: errors[key], disabled });
+  const common = (key: ProductField) => ({ fromUser: fromUser.has(key), error: errors[key], disabled, assistKey: key });
   const validity = [...new Set([...VALIDITY_YEARS, ...(form.validityYears ? [form.validityYears] : [])])].sort((a, b) => a - b);
   return (
     <div className="space-y-5">
@@ -59,67 +59,45 @@ export function BasicsStep({ form, setForm, errors, fromUser, disabled }: StepPr
         <StepHeading title="Product Information" />
         {/* Wide containers (the Product Setup page) fit four fields in a row; the chat card keeps two. */}
         <div className="@container">
-        <div className="grid gap-3 sm:grid-cols-2 @3xl:grid-cols-4">
-          <TextField label="Product Name" required value={form.productName} onChange={(v) => update('productName', v)} placeholder="Enter Product Name" maxLength={100} hideCounter className="@3xl:col-span-2" {...common('productName')} />
-          <TextField label="Description" value={form.shortDesc} onChange={(v) => update('shortDesc', v)} placeholder="Enter Description" maxLength={MAX_DESCRIPTION} className="@3xl:col-span-2" {...common('shortDesc')} />
-          <SelectField label="Market Segment" required value={form.marketSegment} options={[{ value: '', label: 'Select Market Segment' }, ...enumOptions(MARKET_SEGMENTS)]} onChange={(v) => update('marketSegment', v)} {...common('marketSegment')} />
-          <SelectField
-            label="Product Type"
-            required
-            value={form.productType}
-            options={[{ value: '', label: 'Select Product Type' }, ...enumOptions(PRODUCT_TYPES)]}
-            onChange={(v) => update('productType', v)}
-            {...common('productType')}
-          />
-          <SelectField
-            label="Account Currency"
-            required
-            value={form.currency}
-            options={currencyOptions(form.currency)}
-            // Domestic settlement follows the account currency until the user chooses one.
-            onChange={(v) => setForm((f) => ({ ...f, currency: v, domesticSettlementCurrency: f.domesticSettlementCurrency || v }))}
-            {...common('currency')}
-          />
-          <SelectField
-            label="Card Validity Duration (in years)"
-            required
-            value={form.validityYears === null ? '' : String(form.validityYears)}
-            options={[{ value: '', label: 'Select Card Validity Duration' }, ...validity.map((y) => ({ value: String(y), label: String(y) }))]}
-            onChange={(v) => update('validityYears', v ? Number(v) : null)}
-            {...common('validityYears')}
-          />
-          <TextField
-            label="Default Cardholder Name (Anonymous Card)"
-            value={form.defaultName}
-            onChange={(v) => update('defaultName', v)}
-            placeholder="Enter Default Name"
-            className="@3xl:col-span-2"
-            maxLength={MAX_DEFAULT_NAME}
-            uppercase
-            {...common('defaultName')}
-          />
-          <TextField label="Live From" required type="date" value={form.effectiveDate} onChange={(v) => update('effectiveDate', v)} className="@3xl:col-span-2" {...common('effectiveDate')} />
-        </div>
+          <div className="grid gap-3 sm:grid-cols-2 @3xl:grid-cols-4">
+            <TextField label="Product Name" required value={form.productName} onChange={(v) => update('productName', v)} placeholder="Enter Product Name" maxLength={100} hideCounter className="@3xl:col-span-2" {...common('productName')} />
+            <TextField label="Description" value={form.shortDesc} onChange={(v) => update('shortDesc', v)} placeholder="Enter Description" maxLength={MAX_DESCRIPTION} className="@3xl:col-span-2" {...common('shortDesc')} />
+            <SelectField label="Market Segment" required value={form.marketSegment} options={[{ value: '', label: 'Select Market Segment' }, ...enumOptions(MARKET_SEGMENTS)]} onChange={(v) => update('marketSegment', v)} {...common('marketSegment')} />
+            <SelectField label="Product Type" required value={form.productType} options={[{ value: '', label: 'Select Product Type' }, ...enumOptions(PRODUCT_TYPES)]} onChange={(v) => update('productType', v)} {...common('productType')} />
+            <SelectField
+              label="Account Currency"
+              required
+              value={form.currency}
+              options={currencyOptions(form.currency)}
+              // Domestic settlement follows the account currency until the user chooses one.
+              onChange={(v) => setForm((f) => ({ ...f, currency: v, domesticSettlementCurrency: f.domesticSettlementCurrency || v }))}
+              {...common('currency')}
+            />
+            <SelectField
+              label="Card Validity Duration (in years)"
+              required
+              value={form.validityYears === null ? '' : String(form.validityYears)}
+              options={[{ value: '', label: 'Select Card Validity Duration' }, ...validity.map((y) => ({ value: String(y), label: String(y) }))]}
+              onChange={(v) => update('validityYears', v ? Number(v) : null)}
+              {...common('validityYears')}
+            />
+            <TextField label="Default Cardholder Name (Anonymous Card)" value={form.defaultName} onChange={(v) => update('defaultName', v)} placeholder="Enter Default Name" className="@3xl:col-span-2" maxLength={MAX_DEFAULT_NAME} uppercase {...common('defaultName')} />
+            <TextField label="Live From" required type="date" value={form.effectiveDate} onChange={(v) => update('effectiveDate', v)} className="@3xl:col-span-2" {...common('effectiveDate')} />
+          </div>
         </div>
       </section>
 
       <section className="space-y-3">
         <StepHeading title="Transaction Scope" />
         <div className="grid gap-3 sm:grid-cols-2">
-          <Panel
-            title="Domestic transaction"
-            actions={<Toggle label="Domestic transaction" checked={form.allowDomesticTxn === 'Y'} onChange={(on) => update('allowDomesticTxn', on ? 'Y' : 'N')} disabled={disabled} />}
-          >
+          <Panel title="Domestic transaction" actions={<Toggle label="Domestic transaction" checked={form.allowDomesticTxn === 'Y'} onChange={(on) => update('allowDomesticTxn', on ? 'Y' : 'N')} disabled={disabled} />}>
             {form.allowDomesticTxn === 'Y' ? (
               <SelectField label="Settlement currency" required value={form.domesticSettlementCurrency} options={currencyOptions(form.domesticSettlementCurrency)} onChange={(v) => update('domesticSettlementCurrency', v)} {...common('domesticSettlementCurrency')} />
             ) : (
               <p className="text-xs text-zinc-500 dark:text-zinc-400">Domestic transactions are turned off.</p>
             )}
           </Panel>
-          <Panel
-            title="International transaction"
-            actions={<Toggle label="International transaction" checked={form.allowIntlTxn === 'Y'} onChange={(on) => update('allowIntlTxn', on ? 'Y' : 'N')} disabled={disabled} />}
-          >
+          <Panel title="International transaction" actions={<Toggle label="International transaction" checked={form.allowIntlTxn === 'Y'} onChange={(on) => update('allowIntlTxn', on ? 'Y' : 'N')} disabled={disabled} />}>
             {form.allowIntlTxn === 'Y' ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 <SelectField label="Settlement currency" required value={form.intlSettlementCurrency} options={currencyOptions(form.intlSettlementCurrency)} onChange={(v) => update('intlSettlementCurrency', v)} {...common('intlSettlementCurrency')} />
@@ -148,11 +126,11 @@ export function BasicsStep({ form, setForm, errors, fromUser, disabled }: StepPr
 
 /* ---------- Policies ---------- */
 
-function PolicySelect({ label, items, value, onChange, error, disabled }: { label: string; items: PolicyItem[]; value: number | null; onChange: (id: number | null) => void; error?: string; disabled: boolean }) {
+function PolicySelect({ label, items, value, onChange, error, disabled, assistKey }: { label: string; items: PolicyItem[]; value: number | null; onChange: (id: number | null) => void; error?: string; disabled: boolean; assistKey: string }) {
   const chosen = items.find((i) => i.id === value);
   return (
     <>
-      <SelectField label={label} required value={value === null ? '' : String(value)} options={idOptions(items, `Select ${label.toLowerCase()}`)} onChange={(v) => onChange(toId(v))} error={error} disabled={disabled} />
+      <SelectField label={label} required value={value === null ? '' : String(value)} options={idOptions(items, `Select ${label.toLowerCase()}`)} onChange={(v) => onChange(toId(v))} error={error} disabled={disabled} assistKey={assistKey} />
       {chosen && (
         <InfoNote>
           {chosen.name}: {chosen.description}
@@ -171,18 +149,9 @@ export function PoliciesStep({ form, setForm, errors, disabled }: StepProps) {
         icon={<Lock className="h-4 w-4" />}
         title="PIN policy"
         description="Define whether this product requires a PIN."
-        actions={
-          <Toggle
-            label="PIN policy"
-            checked={pinOn}
-            onText="Configured"
-            offText="Not Required"
-            onChange={(on) => setForm((f) => ({ ...f, pinPolicyRequired: on ? 'Y' : 'N', pinPolicyId: on ? (f.pinPolicyId ?? PIN_POLICIES[0].id) : f.pinPolicyId }))}
-            disabled={disabled}
-          />
-        }
+        actions={<Toggle label="PIN policy" checked={pinOn} onText="Configured" offText="Not Required" onChange={(on) => setForm((f) => ({ ...f, pinPolicyRequired: on ? 'Y' : 'N', pinPolicyId: on ? (f.pinPolicyId ?? PIN_POLICIES[0].id) : f.pinPolicyId }))} disabled={disabled} />}
       >
-        {pinOn && <PolicySelect label="PIN policy" items={PIN_POLICIES} value={form.pinPolicyId} onChange={(id) => setForm((f) => ({ ...f, pinPolicyId: id }))} error={errors.pinPolicyId} disabled={disabled} />}
+        {pinOn && <PolicySelect label="PIN policy" items={PIN_POLICIES} value={form.pinPolicyId} onChange={(id) => setForm((f) => ({ ...f, pinPolicyId: id }))} error={errors.pinPolicyId} disabled={disabled} assistKey="pinPolicyId" />}
       </Panel>
       <Panel
         icon={<BadgePercent className="h-4 w-4" />}
@@ -199,7 +168,7 @@ export function PoliciesStep({ form, setForm, errors, disabled }: StepProps) {
           />
         }
       >
-        {quotaOn && <PolicySelect label="Quota policy" items={QUOTA_POLICIES} value={form.quotaPolicyId} onChange={(id) => setForm((f) => ({ ...f, quotaPolicyId: id }))} error={errors.quotaPolicyId} disabled={disabled} />}
+        {quotaOn && <PolicySelect label="Quota policy" items={QUOTA_POLICIES} value={form.quotaPolicyId} onChange={(id) => setForm((f) => ({ ...f, quotaPolicyId: id }))} error={errors.quotaPolicyId} disabled={disabled} assistKey="quotaPolicyId" />}
       </Panel>
       <Panel
         icon={<RefreshCw className="h-4 w-4" />}
@@ -219,7 +188,7 @@ export function PoliciesStep({ form, setForm, errors, disabled }: StepProps) {
         }
       >
         {form.renewalType === 'RENEWABLE' ? (
-          <PolicySelect label="Renewal policy" items={REISSUE_POLICIES} value={form.reissuePolicyId} onChange={(id) => setForm((f) => ({ ...f, reissuePolicyId: id }))} error={errors.reissuePolicyId} disabled={disabled} />
+          <PolicySelect label="Renewal policy" items={REISSUE_POLICIES} value={form.reissuePolicyId} onChange={(id) => setForm((f) => ({ ...f, reissuePolicyId: id }))} error={errors.reissuePolicyId} disabled={disabled} assistKey="reissuePolicyId" />
         ) : (
           <InfoNote>Cards under this product are not renewable.</InfoNote>
         )}
@@ -249,11 +218,7 @@ function ControlBlock({ title, noun, plural, options, value, onChange, error, di
         <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
       ) : (
         <InfoNote tone={allow && !count ? 'success' : 'neutral'}>
-          {allow
-            ? count
-              ? `All ${plural} are allowed except the ${count} selected.`
-              : `No exceptions configured. All ${plural} are allowed.`
-            : `Only the ${count} selected ${count === 1 ? noun : plural} ${count === 1 ? 'is' : 'are'} allowed.`}
+          {allow ? (count ? `All ${plural} are allowed except the ${count} selected.` : `No exceptions configured. All ${plural} are allowed.`) : `Only the ${count} selected ${count === 1 ? noun : plural} ${count === 1 ? 'is' : 'are'} allowed.`}
         </InfoNote>
       )}
     </section>
@@ -293,26 +258,8 @@ export function PermissionsStep({ form, setForm, errors, disabled }: StepProps) 
         error={errors.countryControl}
         disabled={disabled}
       />
-      <ControlBlock
-        title="Currency controls"
-        noun="currency"
-        plural="currencies"
-        options={CURRENCIES.map((c) => ({ value: c, label: c }))}
-        value={form.currencyControl}
-        onChange={(c) => update('currencyControl', c)}
-        error={errors.currencyControl}
-        disabled={disabled}
-      />
-      <ControlBlock
-        title="MCC controls"
-        noun="MCC"
-        plural="MCCs"
-        options={Object.keys(MCCS).map((code) => ({ value: code, label: mccName(code) }))}
-        value={form.mccControl}
-        onChange={(c) => update('mccControl', c)}
-        error={errors.mccControl}
-        disabled={disabled}
-      />
+      <ControlBlock title="Currency controls" noun="currency" plural="currencies" options={CURRENCIES.map((c) => ({ value: c, label: c }))} value={form.currencyControl} onChange={(c) => update('currencyControl', c)} error={errors.currencyControl} disabled={disabled} />
+      <ControlBlock title="MCC controls" noun="MCC" plural="MCCs" options={Object.keys(MCCS).map((code) => ({ value: code, label: mccName(code) }))} value={form.mccControl} onChange={(c) => update('mccControl', c)} error={errors.mccControl} disabled={disabled} />
     </div>
   );
 }
@@ -337,7 +284,7 @@ function LimitsTable({ title, field, currency, rows, onChange, errors, disabled 
       {rows.map((row, i) => (
         <div key={i} className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-800/60" role="group" aria-label={`${title} ${i + 1}`}>
           <div className="mb-2 flex items-end gap-2">
-            <Field label="Transaction type" required error={errors[`${field}.${i}.txnType`]} className="flex-1">
+            <Field label="Transaction type" required error={errors[`${field}.${i}.txnType`]} className="flex-1" assistKey={`${field}.${i}.txnType`}>
               {({ id, describedBy, invalid }) => (
                 <select id={id} value={row.txnType} disabled={disabled} aria-invalid={invalid} aria-describedby={describedBy} onChange={(e) => update(i, { txnType: e.target.value })} className={inputClass}>
                   <option value="">Select transaction type</option>
@@ -355,7 +302,7 @@ function LimitsTable({ title, field, currency, rows, onChange, errors, disabled 
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {LIMIT_COLUMNS.map((c) => (
-              <NumberField key={c.key} label={c.label} value={row[c.key]} step={c.count ? 1 : undefined} placeholder="No limit" onChange={(v) => update(i, { [c.key]: v })} error={errors[`${field}.${i}.${c.key}`]} disabled={disabled} />
+              <NumberField key={c.key} label={c.label} value={row[c.key]} step={c.count ? 1 : undefined} placeholder="No limit" onChange={(v) => update(i, { [c.key]: v })} error={errors[`${field}.${i}.${c.key}`]} disabled={disabled} assistKey={`${field}.${i}.${c.key}`} />
             ))}
           </div>
         </div>
@@ -393,18 +340,38 @@ export function LimitsStep({ form, setForm, errors, disabled }: StepProps) {
 
 type FeeField = 'serviceFees' | 'domesticFees' | 'intlFees';
 
-function FeeTierRow({ tier, index, count, currency, prefix, onChange, onAdd, onRemove, errors, disabled }: { tier: FeeTier; index: number; count: number; currency: string; prefix: string; onChange: (t: FeeTier) => void; onAdd: () => void; onRemove: () => void; errors: ProductErrors; disabled: boolean }) {
+function FeeTierRow({
+  tier,
+  index,
+  count,
+  currency,
+  prefix,
+  onChange,
+  onAdd,
+  onRemove,
+  errors,
+  disabled,
+}: {
+  tier: FeeTier;
+  index: number;
+  count: number;
+  currency: string;
+  prefix: string;
+  onChange: (t: FeeTier) => void;
+  onAdd: () => void;
+  onRemove: () => void;
+  errors: ProductErrors;
+  disabled: boolean;
+}) {
   const err = (k: keyof FeeTier) => errors[`${prefix}.tiers.${index}.${k}`];
   const num = (key: Exclude<keyof FeeTier, 'vatIncluded'>, label: string, placeholder?: string) => (
-    <NumberField label={label} value={tier[key]} placeholder={placeholder} onChange={(v) => onChange({ ...tier, [key]: v })} error={err(key)} disabled={disabled} />
+    <NumberField label={label} value={tier[key]} placeholder={placeholder} onChange={(v) => onChange({ ...tier, [key]: v })} error={err(key)} disabled={disabled} assistKey={`${prefix}.tiers.${index}.${key}`} />
   );
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900" role="group" aria-label={`Fee tier ${index + 1}`}>
       <div className="mb-2 flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">{index + 1}</span>
-        <span className="flex-1 text-xs italic text-zinc-500 dark:text-zinc-400">
-          Fee applies for transactions {tier.amountTo === null ? `from ${tier.amountFrom ?? 0} ${currency} and above` : `from ${tier.amountFrom ?? 0} to ${tier.amountTo} ${currency}`}.
-        </span>
+        <span className="flex-1 text-xs italic text-zinc-500 dark:text-zinc-400">Fee applies for transactions {tier.amountTo === null ? `from ${tier.amountFrom ?? 0} ${currency} and above` : `from ${tier.amountFrom ?? 0} to ${tier.amountTo} ${currency}`}.</span>
         <RowButton label={`Add a fee tier after tier ${index + 1}`} onClick={onAdd} disabled={disabled}>
           <AddIcon />
         </RowButton>
@@ -457,10 +424,11 @@ function FeeCard({ field, fee, index, currency, onChange, onRemove, errors, disa
           onChange={(v) => onChange({ ...fee, feeType: v, title: !fee.title || fee.title === feeTypeName(field, fee.feeType) ? feeTypeName(field, v) : fee.title })}
           error={errors[`${prefix}.feeType`]}
           disabled={disabled}
+          assistKey={`${prefix}.feeType`}
         />
-        <TextField label="Policy title" required value={fee.title} onChange={(v) => onChange({ ...fee, title: v })} placeholder="Enter policy title" error={errors[`${prefix}.title`]} disabled={disabled} />
-        <TextField label="Effective date" required type="date" value={fee.effectiveDate} onChange={(v) => onChange({ ...fee, effectiveDate: v })} error={errors[`${prefix}.effectiveDate`]} disabled={disabled} />
-        <TextField label="Expiry date" type="date" value={fee.expiryDate} min={fee.effectiveDate || undefined} onChange={(v) => onChange({ ...fee, expiryDate: v })} error={errors[`${prefix}.expiryDate`]} disabled={disabled} />
+        <TextField label="Policy title" required value={fee.title} onChange={(v) => onChange({ ...fee, title: v })} placeholder="Enter policy title" error={errors[`${prefix}.title`]} disabled={disabled} assistKey={`${prefix}.title`} />
+        <TextField label="Effective date" required type="date" value={fee.effectiveDate} onChange={(v) => onChange({ ...fee, effectiveDate: v })} error={errors[`${prefix}.effectiveDate`]} disabled={disabled} assistKey={`${prefix}.effectiveDate`} />
+        <TextField label="Expiry date" type="date" value={fee.expiryDate} min={fee.effectiveDate || undefined} onChange={(v) => onChange({ ...fee, expiryDate: v })} error={errors[`${prefix}.expiryDate`]} disabled={disabled} assistKey={`${prefix}.expiryDate`} />
       </div>
       <div className="mt-3 space-y-2 rounded-lg bg-zinc-50 p-2 dark:bg-zinc-800/60">
         <p className="px-1 text-xs font-medium text-zinc-700 dark:text-zinc-300">Fee tiers by usage</p>

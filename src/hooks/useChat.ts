@@ -5,6 +5,7 @@ import { SPEED_PRESETS } from '../services/settingsService';
 import { promptWithAttachments } from '../utils/attachments';
 import { createId } from '../utils/id';
 import { titleFromPrompt } from '../utils/markdown';
+import { estimateUsage } from '../utils/tokens';
 import type { ConversationsAction } from './conversationReducer';
 import { useStreamingMock } from './useStreamingMock';
 
@@ -51,7 +52,7 @@ export function useChat({ aiService, dispatch, getConversation, settings, onConv
       const onEvent = (event: GenerationEvent) => {
         switch (event.type) {
           case 'started':
-            update({ status: 'pending', steps: event.steps.map((s) => ({ ...s, status: 'pending' })) });
+            update({ status: 'pending', steps: event.steps.map((s) => ({ ...s, status: 'pending' })), usage: event.usage ?? estimateUsage(history, prompt, '') });
             announce('Assistant is thinking');
             break;
           case 'step_started':
@@ -64,11 +65,11 @@ export function useChat({ aiService, dispatch, getConversation, settings, onConv
             dispatch({ type: 'appendToken', conversationId, messageId, token: event.token });
             break;
           case 'completed':
-            update({ status: 'completed', content: event.content, durationMs: event.durationMs, ...(event.action ? { action: event.action } : {}) });
+            update({ status: 'completed', content: event.content, durationMs: event.durationMs, usage: event.usage ?? estimateUsage(history, prompt, event.content), ...(event.action ? { action: event.action } : {}) });
             announce('Response complete');
             break;
           case 'cancelled':
-            update((m) => ({ status: 'cancelled', durationMs: event.durationMs, steps: settleSteps(m) }));
+            update((m) => ({ status: 'cancelled', durationMs: event.durationMs, steps: settleSteps(m), usage: event.usage ?? estimateUsage(history, prompt, m.content) }));
             announce('Response stopped');
             break;
           case 'error':
@@ -140,7 +141,7 @@ export function useChat({ aiService, dispatch, getConversation, settings, onConv
         type: 'updateMessage',
         conversationId,
         messageId: assistantMessageId,
-        patch: { content: '', status: 'pending', steps: [], durationMs: undefined, error: undefined, feedback: undefined, action: undefined, revision, createdAt: Date.now() },
+        patch: { content: '', status: 'pending', steps: [], durationMs: undefined, error: undefined, feedback: undefined, action: undefined, usage: undefined, revision, createdAt: Date.now() },
       });
       return runGeneration(conversationId, assistantMessageId, prompt, toHistory(conversation.messages.slice(0, userIndex + 1)), revision, userMessage.mode);
     },

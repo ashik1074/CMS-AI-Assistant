@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import { CheckCircle2, ChevronDown, Info, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { FieldAssist } from './FieldAssist';
 
 export const inputClass =
   'w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-brand-400 focus:ring-3 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-500 dark:focus:ring-0';
@@ -15,16 +16,18 @@ interface FieldShellProps {
   className?: string;
   /** Shown at the end of the label row, e.g. a character count. */
   aside?: ReactNode;
+  /** Adds the AI help button (on forms that provide it), for the field with this key, e.g. `productName`. */
+  assistKey?: string;
   children: (ids: { id: string; describedBy?: string; invalid: boolean }) => ReactNode;
 }
 
-export function Field({ label, required, fromUser, hint, error, className, aside, children }: FieldShellProps) {
+export function Field({ label, required, fromUser, hint, error, className, aside, assistKey, children }: FieldShellProps) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const describedBy = [hint && hintId, error && errorId].filter(Boolean).join(' ') || undefined;
   return (
-    <div className={className}>
+    <div className={cn(className, assistKey && 'group/field relative')} data-assist-field={assistKey ? '' : undefined}>
       <div className="mb-1 flex items-center gap-2">
         <label htmlFor={id} className="flex flex-1 flex-wrap items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
           {label}
@@ -48,6 +51,8 @@ export function Field({ label, required, fromUser, hint, error, className, aside
           {error}
         </p>
       )}
+      {/* After the control, so Tab moves from the field to its AI button. */}
+      {assistKey && <FieldAssist fieldKey={assistKey} label={label} />}
     </div>
   );
 }
@@ -79,6 +84,7 @@ interface TextFieldProps {
   uppercase?: boolean;
   /** Hides the "used / max" counter. */
   hideCounter?: boolean;
+  assistKey?: string;
 }
 
 export function TextField({ label, value, onChange, type = 'text', placeholder, maxLength, min, disabled, uppercase, hideCounter, ...shell }: TextFieldProps) {
@@ -125,6 +131,7 @@ interface NumberFieldProps {
   disabled?: boolean;
   className?: string;
   step?: number;
+  assistKey?: string;
 }
 
 export function NumberField({ label, value, onChange, disabled, step, placeholder, ...shell }: NumberFieldProps) {
@@ -162,22 +169,14 @@ interface SelectFieldProps<T extends string> {
   hint?: string;
   disabled?: boolean;
   className?: string;
+  assistKey?: string;
 }
 
 export function SelectField<T extends string>({ label, value, options, onChange, disabled, ...shell }: SelectFieldProps<T>) {
   return (
     <Field label={label} {...shell}>
       {({ id, describedBy, invalid }) => (
-        <select
-          id={id}
-          value={value}
-          disabled={disabled}
-          aria-invalid={invalid}
-          aria-describedby={describedBy}
-          aria-required={shell.required}
-          onChange={(e) => onChange(e.target.value as T)}
-          className={inputClass}
-        >
+        <select id={id} value={value} disabled={disabled} aria-invalid={invalid} aria-describedby={describedBy} aria-required={shell.required} onChange={(e) => onChange(e.target.value as T)} className={inputClass}>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -201,10 +200,7 @@ export function Toggle({ label, checked, onChange, disabled, onText, offText }: 
         aria-label={label}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={cn(
-          'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60',
-          checked ? 'bg-brand-600 dark:bg-brand-500' : 'bg-zinc-300 dark:bg-zinc-600',
-        )}
+        className={cn('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60', checked ? 'bg-brand-600 dark:bg-brand-500' : 'bg-zinc-300 dark:bg-zinc-600')}
       >
         <span className={cn('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform motion-reduce:transition-none', checked ? 'translate-x-5.5' : 'translate-x-0.5')} />
       </button>
@@ -224,10 +220,7 @@ export function Segmented<T extends string>({ label, value, options, onChange, d
           aria-checked={value === o.value}
           disabled={disabled}
           onClick={() => onChange(o.value)}
-          className={cn(
-            'rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-60',
-            value === o.value ? 'bg-brand-600 text-white dark:bg-brand-500' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
-          )}
+          className={cn('rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-60', value === o.value ? 'bg-brand-600 text-white dark:bg-brand-500' : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800')}
         >
           {o.label}
         </button>
@@ -314,14 +307,7 @@ export function ChipPicker({ label, placeholder, options, value, onChange, disab
   const left = options.filter((o) => !value.includes(o.value));
   return (
     <div>
-      <select
-        aria-label={label}
-        value=""
-        disabled={disabled || !left.length}
-        aria-invalid={invalid}
-        onChange={(e) => e.target.value && onChange([...value, e.target.value])}
-        className={inputClass}
-      >
+      <select aria-label={label} value="" disabled={disabled || !left.length} aria-invalid={invalid} onChange={(e) => e.target.value && onChange([...value, e.target.value])} className={inputClass}>
         <option value="">{left.length ? placeholder : 'Everything is selected'}</option>
         {left.map((o) => (
           <option key={o.value} value={o.value}>
@@ -408,13 +394,7 @@ export function Section({ title, summary, open, onToggle, errorCount = 0, comple
   return (
     <section className="border-t border-zinc-200 first:border-t-0 dark:border-zinc-700/70">
       <h4>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={contentId}
-          onClick={onToggle}
-          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-        >
+        <button type="button" aria-expanded={open} aria-controls={contentId} onClick={onToggle} className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
           <span className="min-w-0 flex-1">
             <span className="inline-flex items-center gap-1.5 align-middle">
               {title}
@@ -427,11 +407,7 @@ export function Section({ title, summary, open, onToggle, errorCount = 0, comple
             </span>
             {summary && !open && <span className="ml-2 truncate text-xs font-normal text-zinc-500 dark:text-zinc-400">{summary}</span>}
           </span>
-          {errorCount > 0 && (
-            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
-              {errorCount} to fix
-            </span>
-          )}
+          {errorCount > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">{errorCount} to fix</span>}
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-zinc-400 transition-transform', open && 'rotate-180')} aria-hidden="true" />
         </button>
       </h4>

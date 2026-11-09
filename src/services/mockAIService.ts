@@ -5,8 +5,10 @@ import type {
   GenerationOptions,
   GenerationRequest,
   GenerationResult,
+  TokenUsage,
 } from '../types/chat';
 import { chunkText } from '../utils/markdown';
+import { estimateInputTokens, estimateTokens } from '../utils/tokens';
 import { FALLBACK_RESPONSE, MOCK_SCENARIOS, matchScenario, type MockScenario } from '../utils/mockResponses';
 
 export const DEFAULT_GENERATION_OPTIONS: Required<Omit<GenerationOptions, 'signal'>> = {
@@ -96,6 +98,9 @@ export class MockAIService implements AIService {
     const { scenario } = matchScenario(request.prompt, this.scenarios);
     const steps = opts.enableSteps && scenario?.steps ? scenario.steps : [];
     let content = '';
+    // Counted like a model would report them: the input up front, the output as it is generated.
+    const inputTokens = estimateInputTokens(request.history, request.prompt);
+    const usage = (): TokenUsage => ({ inputTokens, outputTokens: estimateTokens(content), estimated: true });
 
     try {
       yield {
@@ -104,6 +109,7 @@ export class MockAIService implements AIService {
         status: 'Thinking',
         scenarioId: scenario?.id ?? 'fallback',
         steps: steps.map((s) => ({ id: s.id, label: s.label })),
+        usage: usage(),
       };
 
       await delay(opts.minThinkingMs, signal);
@@ -132,10 +138,10 @@ export class MockAIService implements AIService {
         yield { ...base(), type: 'token', status: 'Streaming', token };
       }
 
-      yield { ...base(), type: 'completed', status: 'Completed', content, durationMs: elapsed(), ...(agentResult ? { action: agentResult.action } : {}) };
+      yield { ...base(), type: 'completed', status: 'Completed', content, durationMs: elapsed(), usage: usage(), ...(agentResult ? { action: agentResult.action } : {}) };
     } catch (e) {
       if (e instanceof AbortedError || signal.aborted) {
-        yield { ...base(), type: 'cancelled', status: 'Cancelled', durationMs: elapsed() };
+        yield { ...base(), type: 'cancelled', status: 'Cancelled', durationMs: elapsed(), usage: usage() };
         return;
       }
       if (import.meta.env.DEV) console.error('[mockAIService] unexpected failure', e);

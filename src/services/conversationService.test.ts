@@ -22,6 +22,15 @@ describe('LocalConversationService', () => {
     expect(b.getConversation('1')?.messages[0].content).toBe('Hello');
   });
 
+  it('keeps the token usage of responses, and drops malformed usage', () => {
+    const reply = (id: string, usage: unknown) => ({ id, conversationId: '1', role: 'assistant' as const, content: 'Hi', createdAt: 2, status: 'completed' as const, usage });
+    const saved = conv('1', { messages: [reply('a', { inputTokens: 30, outputTokens: 12, estimated: true }), reply('b', { inputTokens: -1, outputTokens: 'x' })] as never });
+    new LocalConversationService(localStorage).saveConversation(saved);
+    const [a, b] = new LocalConversationService(localStorage).getConversation('1')!.messages;
+    expect(a.usage).toEqual({ inputTokens: 30, outputTokens: 12, estimated: true });
+    expect(b.usage).toBeUndefined();
+  });
+
   it('uses a versioned key', () => {
     new LocalConversationService(localStorage).saveConversation(conv('1'));
     expect(CONVERSATIONS_KEY).toMatch(/:v\d+$/);
