@@ -10,6 +10,7 @@ interface ProjectViewProps {
   conversations: Conversation[];
   inputRef: Ref<ChatInputHandle>;
   onStartChat: (text: string, attachments: Attachment[], mode: ChatMode) => boolean;
+  onModeSelect?: (mode: ChatMode) => void;
   onOpenChat: (id: string) => void;
   onRemoveChat: (id: string) => void;
   onAddChats: () => void;
@@ -20,7 +21,7 @@ interface ProjectViewProps {
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-export function ProjectView({ project, conversations, inputRef, onStartChat, onOpenChat, onRemoveChat, onAddChats, onEdit, onDelete, onNewChat }: ProjectViewProps) {
+export function ProjectView({ project, conversations, inputRef, onStartChat, onModeSelect, onOpenChat, onRemoveChat, onAddChats, onEdit, onDelete, onNewChat }: ProjectViewProps) {
   if (!project) {
     return (
       <div className="chat-surface flex flex-1 flex-col items-center justify-center px-6 pt-14 text-center" role="alert">
@@ -56,7 +57,7 @@ export function ProjectView({ project, conversations, inputRef, onStartChat, onO
         </div>
 
         <div className="-mx-3 mt-6 sm:-mx-6">
-          <ChatInput ref={inputRef} onSend={onStartChat} onStop={() => {}} generating={false} />
+          <ChatInput ref={inputRef} onSend={onStartChat} onModeSelect={onModeSelect} onStop={() => {}} generating={false} />
         </div>
 
         <section aria-labelledby="project-chats-heading" className="mt-6">

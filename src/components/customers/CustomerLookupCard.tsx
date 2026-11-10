@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { Cake, CalendarClock, Loader2, Mail, RotateCcw, SearchX, ShieldCheck, Smartphone, User, UserRound, UserSearch } from 'lucide-react';
+import { Cake, CalendarClock, IdCard, Loader2, Mail, RotateCcw, SearchX, ShieldCheck, Smartphone, User, UserRound, UserSearch } from 'lucide-react';
 import type { ReportHandlers } from '../../hooks/useReports';
 import type { CustomerIdType, CustomerLookupAction, CustomerProfile, CustomerStatus } from '../../types/customer';
 import { cn } from '../../utils/cn';
 import { findCustomer, formatDay, formatDayTime, ID_TYPE_CHOICES, ID_TYPE_LABELS, idRule, initials, maskEmail } from '../../utils/customerData';
 import { CardHeader, RadioCards, Required } from '../reports/ReportCards';
 
-const cardClass = 'mt-3 rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60';
+export const cardClass = 'mt-3 rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60';
 
 interface CardProps {
   messageId: string;
@@ -19,10 +19,10 @@ interface CardProps {
 export function CustomerLookupCard({ messageId, action, handlers, readOnly }: CardProps) {
   const live = readOnly ? undefined : handlers;
   if (action.status === 'choosing' || !action.idType) return <ChooseIdType messageId={messageId} query={action.query} handlers={live} />;
-  if (action.status === 'searching') return <Searching query={action.query} idType={action.idType} />;
+  if (action.status === 'searching') return <SearchingCard title="Customer lookup" subtitle={`${ID_TYPE_LABELS[action.idType]} · ${action.query}`} searchingBy={ID_TYPE_LABELS[action.idType]} />;
   const customer = action.status === 'found' ? findCustomer(action.query, action.idType) : null;
   if (!customer) return <NotValid messageId={messageId} query={action.query} idType={action.idType} handlers={live} />;
-  return <CustomerProfileCard customer={customer} query={action.query} idType={action.idType} />;
+  return <CustomerProfileCard customer={customer} foundBy={[{ label: ID_TYPE_LABELS[action.idType], value: action.query }]} />;
 }
 
 function ChooseIdType({ messageId, query, handlers }: { messageId: string; query: string; handlers?: ReportHandlers }) {
@@ -49,7 +49,7 @@ function ChooseIdType({ messageId, query, handlers }: { messageId: string; query
           <RadioCards name={`id-type-${messageId}`} label="Identifier type" options={ID_TYPE_CHOICES} value={idType} onChange={setIdType} invalid={tried && !idType} disabled={!handlers} />
           {tried && !idType && (
             <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">
-              Choose whether this is a phone number, CIF ID or customer ID.
+              Choose whether this is a phone number, CIF ID, customer ID or NID.
             </p>
           )}
         </fieldset>
@@ -67,13 +67,14 @@ function ChooseIdType({ messageId, query, handlers }: { messageId: string; query
   );
 }
 
-function Searching({ query, idType }: { query: string; idType: CustomerIdType }) {
+/** The pause while customer records are searched, in the shape of the profile so the result doesn't jump in. */
+export function SearchingCard({ title, subtitle, searchingBy, testId = 'customer-lookup' }: { title: string; subtitle: string; searchingBy: string; testId?: string }) {
   return (
-    <div className={cardClass} data-testid="customer-lookup" data-status="searching" aria-busy="true">
+    <div className={cardClass} data-testid={testId} data-status="searching" aria-busy="true">
       <CardHeader
         icon={<UserSearch className="h-4 w-4" />}
-        title="Customer lookup"
-        subtitle={`${ID_TYPE_LABELS[idType]} · ${query}`}
+        title={title}
+        subtitle={subtitle}
         badge={
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-800 dark:bg-brand-500/20 dark:text-brand-200">
             <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
@@ -100,7 +101,7 @@ function Searching({ query, idType }: { query: string; idType: CustomerIdType })
         </div>
       </div>
       <p className="sr-only" role="status">
-        Searching customer records by {ID_TYPE_LABELS[idType]}…
+        Searching customer records by {searchingBy}…
       </p>
     </div>
   );
@@ -134,11 +135,12 @@ const STATUS_STYLES: Record<CustomerStatus, { pill: string; dot: string }> = {
   Dormant: { pill: 'bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-400/25', dot: 'bg-amber-500' },
 };
 
-function CustomerProfileCard({ customer, query, idType }: { customer: CustomerProfile; query: string; idType: CustomerIdType }) {
+/** A customer's basic information. `foundBy` lists the details the search used. */
+export function CustomerProfileCard({ customer, foundBy, testId = 'customer-lookup', footerAction }: { customer: CustomerProfile; foundBy: { label: string; value: string }[]; testId?: string; footerAction?: ReactNode }) {
   const status = STATUS_STYLES[customer.status];
   const fullName = `${customer.salutation} ${customer.name}`;
   return (
-    <article className={cn(cardClass, 'overflow-hidden')} data-testid="customer-lookup" data-status="found" aria-label={`Customer profile: ${fullName}`}>
+    <article className={cn(cardClass, 'overflow-hidden')} data-testid={testId} data-status="found" aria-label={`Customer profile: ${fullName}`}>
       <header className="flex flex-wrap items-center gap-4 border-b border-zinc-200 bg-gradient-to-r from-brand-50 via-white to-white px-5 py-4 dark:border-zinc-700 dark:from-brand-500/15 dark:via-zinc-900/40 dark:to-zinc-900/40">
         <span
           className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-lg font-semibold tracking-wide text-white shadow-sm ring-4 ring-white dark:ring-zinc-900"
@@ -168,15 +170,24 @@ function CustomerProfileCard({ customer, query, idType }: { customer: CustomerPr
         <Detail icon={<UserRound />} label="Mother's Name" value={customer.motherName} />
         <Detail icon={<Cake />} label="Date of Birth" value={formatDay(customer.dateOfBirth)} numeric />
         <Detail icon={<Smartphone />} label="Mobile Number" value={customer.mobile} numeric />
+        <Detail icon={<IdCard />} label="NID" value={customer.nid} numeric />
         <Detail icon={<Mail />} label="Email Address" value={maskEmail(customer.email)} hint="Partly hidden for privacy" />
         <Detail icon={<CalendarClock />} label="Registered On" value={formatDayTime(customer.registeredOn)} numeric />
       </dl>
 
       <footer className="flex items-center gap-1.5 border-t border-zinc-200 bg-zinc-50 px-5 py-2.5 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400">
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span>
-          Found by {ID_TYPE_LABELS[idType]} <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">{query}</span> · demo data
+        <span className="flex-1">
+          Found by{' '}
+          {foundBy.map((f, i) => (
+            <span key={f.label}>
+              {i > 0 && ', '}
+              {f.label} <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">{f.value}</span>
+            </span>
+          ))}{' '}
+          · demo data
         </span>
+        {footerAction}
       </footer>
     </article>
   );

@@ -7,6 +7,7 @@ import type {
   GenerationResult,
   TokenUsage,
 } from '../types/chat';
+import { extractCustomerQuery } from '../utils/customerData';
 import { chunkText } from '../utils/markdown';
 import { estimateInputTokens, estimateTokens } from '../utils/tokens';
 import { FALLBACK_RESPONSE, MOCK_SCENARIOS, matchScenario, type MockScenario } from '../utils/mockResponses';
@@ -95,7 +96,8 @@ export class MockAIService implements AIService {
     this.active.set(request.requestId, controller);
     const signal = controller.signal;
 
-    const { scenario } = matchScenario(request.prompt, this.scenarios);
+    const lookup = request.mode === 'customerSearch' && extractCustomerQuery(request.prompt) ? this.scenarios.find((s) => s.id === 'customerLookup') : undefined;
+    const scenario = lookup ?? matchScenario(request.prompt, this.scenarios).scenario;
     const steps = opts.enableSteps && scenario?.steps ? scenario.steps : [];
     let content = '';
     // Counted like a model would report them: the input up front, the output as it is generated.

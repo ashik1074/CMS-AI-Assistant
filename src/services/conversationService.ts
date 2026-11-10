@@ -3,8 +3,8 @@ import type { Conversation, ConversationService, StorageError, StorageResult } f
 import type { MessageAction, ProductField, ProductSetupAction, ProductSetupStatus } from '../types/product';
 import type { ProductGroupBy, ProductReportAction, ProductReportStatus, ReportAction, ReportChart, TxnRange } from '../types/report';
 import { GROUPINGS } from '../utils/reportData';
-import type { CustomerIdType, CustomerLookupAction } from '../types/customer';
-import { isValidId } from '../utils/customerData';
+import type { CustomerIdType, CustomerLookupAction, CustomerSearchAction, CustomerSearchValues } from '../types/customer';
+import { isValidId, validateCustomerSearch } from '../utils/customerData';
 import { FIELD_LABELS, parseBasics, parseProductForm, parseProductPreferences } from '../utils/productDraft';
 
 export const STORAGE_VERSION = 1;
@@ -17,7 +17,7 @@ interface StoredPayload {
 
 const MESSAGE_STATUSES: MessageStatus[] = ['pending', 'streaming', 'completed', 'cancelled', 'failed'];
 const MAX_TITLE = 120;
-const CHAT_MODES: ChatMode[] = ['reporting', 'agentic', 'analytics'];
+const CHAT_MODES: ChatMode[] = ['customerSearch', 'agentic', 'analytics'];
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isStr = (v: unknown): v is string => typeof v === 'string';
@@ -64,7 +64,17 @@ function parseReport(raw: Record<string, unknown>): ReportAction | null {
   return null;
 }
 
-const ID_TYPES: CustomerIdType[] = ['phone', 'cif', 'customerId'];
+const ID_TYPES: CustomerIdType[] = ['phone', 'cif', 'customerId', 'nid'];
+
+function parseCustomerSearch(raw: Record<string, unknown>): CustomerSearchAction {
+  const v = isObj(raw.values) ? raw.values : {};
+  const values: CustomerSearchValues = { phone: isStr(v.phone) ? v.phone.slice(0, 32) : '', cif: isStr(v.cif) ? v.cif.slice(0, 32) : '', nid: isStr(v.nid) ? v.nid.slice(0, 32) : '' };
+  // A search interrupted by a reload is simply finished, if the details are valid; otherwise the form is shown again.
+  const searched = (raw.status === 'searching' || raw.status === 'found') && !Object.keys(validateCustomerSearch(values)).length;
+  const action: CustomerSearchAction = { type: 'customerSearch', status: searched ? 'found' : 'collecting', values };
+  if (searched && isNum(raw.searchedAt)) action.searchedAt = raw.searchedAt;
+  return action;
+}
 
 function parseCustomerLookup(raw: Record<string, unknown>): CustomerLookupAction | null {
   if (!isStr(raw.query) || !raw.query) return null;
@@ -79,6 +89,7 @@ function parseCustomerLookup(raw: Record<string, unknown>): CustomerLookupAction
 
 function parseAction(raw: unknown): MessageAction | null {
   if (isObj(raw) && raw.type === 'customerLookup') return parseCustomerLookup(raw);
+  if (isObj(raw) && raw.type === 'customerSearch') return parseCustomerSearch(raw);
   if (isObj(raw) && raw.type !== 'createProduct') return parseReport(raw);
   // Products "created" by older versions went through the same submission, so they read as submitted.
   const rawStatus = raw && isObj(raw) && raw.status === 'created' ? 'submitted' : isObj(raw) ? raw.status : undefined;

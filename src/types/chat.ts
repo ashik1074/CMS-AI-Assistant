@@ -18,7 +18,7 @@ export interface ProcessingStep {
 export type ProcessingPhase = 'idle' | 'thinking' | 'steps' | 'streaming' | 'completed' | 'cancelled' | 'failed';
 
 /** What kind of help the user wants; lets a backend route the request to the right agent. */
-export type ChatMode = 'general' | 'reporting' | 'agentic' | 'analytics';
+export type ChatMode = 'general' | 'customerSearch' | 'agentic' | 'analytics';
 
 /** A file the user attached to a message. Only metadata and a small image thumbnail are stored. */
 export interface Attachment {

@@ -25,6 +25,8 @@ export interface ChatInputHandle {
 interface ChatInputProps {
   /** Returns true if the message was accepted (the composer is then cleared). */
   onSend: (text: string, attachments: Attachment[], mode: ChatMode) => boolean;
+  /** A mode was picked from the menu (also when it was already selected). */
+  onModeSelect?: (mode: ChatMode) => void;
   onStop: () => void;
   generating: boolean;
   disabled?: boolean;
@@ -33,7 +35,7 @@ interface ChatInputProps {
 const MAX_HEIGHT = 200;
 export const MAX_MESSAGE_LENGTH = 8000;
 
-export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput({ onSend, onStop, generating, disabled }, ref) {
+export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput({ onSend, onStop, generating, disabled, onModeSelect }, ref) {
   const [value, setValue] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachError, setAttachError] = useState('');
@@ -215,7 +217,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
                   type="button"
                   role="menuitemradio"
                   aria-checked={m.value === mode}
-                  onClick={() => setMode(m.value)}
+                  onClick={() => {
+                    setMode(m.value);
+                    onModeSelect?.(m.value);
+                  }}
                   className={cn(menuItemClass, 'items-start')}
                 >
                   <m.icon className="mt-0.5 h-4 w-4 shrink-0 text-brand-600 dark:text-brand-300" aria-hidden="true" />

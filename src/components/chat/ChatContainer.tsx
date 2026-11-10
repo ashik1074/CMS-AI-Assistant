@@ -16,6 +16,8 @@ interface ChatContainerProps {
   generating: boolean;
   inputRef: Ref<ChatInputHandle>;
   onSend: (text: string, attachments: Attachment[], mode: ChatMode) => boolean;
+  /** A mode was picked in the composer, e.g. Customer Search, which opens its form. */
+  onModeSelect?: (mode: ChatMode) => void;
   onStop: () => void;
   onRegenerate: (messageId: string) => void;
   onEditSubmit: (messageId: string, content: string) => boolean;
@@ -29,7 +31,7 @@ interface ChatContainerProps {
 
 const BOTTOM_THRESHOLD = 80;
 
-export function ChatContainer({ conversation, missing, generating, inputRef, onSend, onStop, onRegenerate, onEditSubmit, onFeedback, onNewChat, productSetup, reports, mascotRideMs }: ChatContainerProps) {
+export function ChatContainer({ conversation, missing, generating, inputRef, onSend, onModeSelect, onStop, onRegenerate, onEditSubmit, onFeedback, onNewChat, productSetup, reports, mascotRideMs }: ChatContainerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   /** Follow new content only while the user is at (or near) the bottom. */
   const stickToBottom = useRef(true);
@@ -119,7 +121,7 @@ export function ChatContainer({ conversation, missing, generating, inputRef, onS
                 </div>
               </div>
             )}
-            <ChatInput ref={inputRef} onSend={handleSend} onStop={onStop} generating={generating} />
+            <ChatInput ref={inputRef} onSend={handleSend} onModeSelect={onModeSelect} onStop={onStop} generating={generating} />
           </div>
         )}
       </div>

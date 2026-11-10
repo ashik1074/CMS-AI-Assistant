@@ -507,7 +507,7 @@ export const CAPABILITY_PROMPTS: CapabilityPrompt[] = [
   { group: 'Reports', prompt: 'Show me visual transaction data for 01712345678', description: 'A transaction histogram for any phone number, with a date-range filter.', scenario: 'transactionReport' },
   { group: 'Customers', prompt: "Give me customer information for this Phone Number '01789833786'", description: "Finds the customer and shows their profile: name, status, parents' names, date of birth, contact details and registration date.", scenario: 'customerLookup' },
   { group: 'Customers', prompt: "Give me customer information for CIF ID 'CIF0013806'", description: 'The same lookup by CIF ID (or say "Customer ID 13806").', scenario: 'customerLookup' },
-  { group: 'Customers', prompt: "Give me customer information for '01789833786'", description: 'Asks whether the value is a phone number, CIF ID or customer ID, then searches.', scenario: 'customerLookup' },
+  { group: 'Customers', prompt: "Give me customer information for '01789833786'", description: 'Asks whether the value is a phone number, CIF ID, customer ID or NID, then searches.', scenario: 'customerLookup' },
   { group: 'Explanations', prompt: 'Explain how large language models work', description: 'A plain-language explanation.', scenario: 'explain' },
   { group: 'Explanations', prompt: 'Explain closures in JavaScript', description: 'A short explanation with an example.', scenario: 'explain' },
   { group: 'Explanations', prompt: 'How does the event loop work?', description: 'How asynchronous JavaScript runs.', scenario: 'explain' },

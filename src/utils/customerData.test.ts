@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractCustomerQuery, findCustomer, formatDay, formatDayTime, idTypeFromPrompt, initials, isValidId, maskEmail } from './customerData';
+import { extractCustomerQuery, findCustomer, formatDay, formatDayTime, idRule, idTypeFromPrompt, initials, isValidId, maskEmail, searchCustomers, validateCustomerSearch } from './customerData';
 import { matchScenario, MOCK_SCENARIOS } from './mockResponses';
 
 const lookup = MOCK_SCENARIOS.find((s) => s.id === 'customerLookup')!;
@@ -53,7 +53,7 @@ describe('customer lookup prompts', () => {
     expect(lookup.agent!("customer information for Phone Number '12345'", [], NOW).action).toMatchObject({ status: 'invalid', idType: 'phone' });
     const none = lookup.agent!('give me customer information', [], NOW);
     expect(none.action).toBeUndefined();
-    expect(none.content).toMatch(/phone number, CIF ID or customer ID/);
+    expect(none.content).toMatch(/phone number, CIF ID, customer ID or NID/);
   });
 });
 
@@ -99,5 +99,30 @@ describe('findCustomer', () => {
     expect(formatDayTime({ year: 2026, month: 1, day: 5, hour: 12, minute: 0 })).toBe('05-Jan-2026 · 12:00 PM');
     expect(maskEmail('ab@x.com')).toBe('ab@x.com');
     expect(initials('Nafidul Alam')).toBe('NA');
+  });
+});
+
+describe('Customer Search form', () => {
+  const blank = { phone: '', cif: '', nid: '' };
+
+  it('needs at least one detail, and checks the format of each one given', () => {
+    expect(validateCustomerSearch(blank)).toEqual({ form: 'Enter at least one: phone number, CIF ID or NID.' });
+    expect(validateCustomerSearch({ ...blank, phone: '0171' })).toEqual({ phone: idRule('phone') });
+    expect(validateCustomerSearch({ ...blank, nid: '12345678901234567' })).toEqual({});
+    expect(validateCustomerSearch({ ...blank, cif: ' cif 0013806 ' })).toEqual({});
+  });
+
+  it('finds one customer matching every detail given', () => {
+    const customer = searchCustomers({ phone: '017-1234-5678', cif: '', nid: '1987654321' })!;
+    expect(customer.mobile).toBe('01712345678');
+    expect(customer.nid).toBe('1987654321');
+    expect(searchCustomers({ ...blank, cif: 'CIF0013806' })).toMatchObject({ name: 'Nafidul Alam', customerId: 13806, nid: '5102345678' });
+    expect(searchCustomers(blank)).toBeNull();
+  });
+
+  it('finds customers by NID in chat lookups too', () => {
+    expect(idTypeFromPrompt('Customer details for NID 5102345678')).toBe('nid');
+    expect(findCustomer('5102345678', 'nid')?.name).toBe('Nafidul Alam');
+    expect(findCustomer('12345', 'nid')).toBeNull();
   });
 });

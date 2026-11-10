@@ -1,4 +1,4 @@
-import type { CustomerIdType, CustomerProfile, CustomerStatus, DateParts } from '../types/customer';
+import type { CustomerIdType, CustomerProfile, CustomerSearchValues, CustomerStatus, DateParts } from '../types/customer';
 import { hashString, seededRandom } from './reportData';
 
 /*
@@ -12,12 +12,13 @@ import { hashString, seededRandom } from './reportData';
 export const CUSTOMER_LOOKUP_PATTERN =
   /\bcustomers?\b[^\n]*\b(info(rmation)?|details?|profile|data|record|lookup)\b|\b(find|search|look\s*up|get|show|fetch)\b[^\n]*\bcustomers?\b/i;
 
-export const ID_TYPE_LABELS: Record<CustomerIdType, string> = { phone: 'Phone Number', cif: 'CIF ID', customerId: 'Customer ID' };
+export const ID_TYPE_LABELS: Record<CustomerIdType, string> = { phone: 'Phone Number', cif: 'CIF ID', customerId: 'Customer ID', nid: 'NID' };
 
 export const ID_TYPE_CHOICES: { value: CustomerIdType; label: string; hint: string }[] = [
   { value: 'phone', label: 'Phone Number', hint: 'Registered mobile number, e.g. 01XXXXXXXXX' },
   { value: 'cif', label: 'CIF ID', hint: 'Customer Information File number' },
   { value: 'customerId', label: 'Customer ID', hint: 'The numeric ID the system gave the customer' },
+  { value: 'nid', label: 'NID', hint: 'National ID card number: 10, 13 or 17 digits' },
 ];
 
 /** The identifier to search for: a quoted value first, otherwise the last ID-like token. */
@@ -31,6 +32,7 @@ export function extractCustomerQuery(text: string): string | null {
 /** What kind of identifier the prompt says it is, if it says. */
 export function idTypeFromPrompt(text: string): CustomerIdType | null {
   if (/\bcif\b/i.test(text)) return 'cif';
+  if (/\b(nid|national\s+id)\b/i.test(text)) return 'nid';
   if (/\bcustomer\s*(id|no\.?|number)\b|\bcust\s*id\b/i.test(text)) return 'customerId';
   if (/\b(phone|mobile|cell|msisdn|contact\s*number)\b/i.test(text)) return 'phone';
   return null;
@@ -40,6 +42,7 @@ const FORMATS: Record<CustomerIdType, { test: (v: string) => boolean; rule: stri
   phone: { test: (v) => /^(\+?88)?01[3-9]\d{8}$/.test(v), rule: 'A phone number has 11 digits and starts with 01 (for example 01789833786).' },
   cif: { test: (v) => /^(CIF)?\d{5,12}$/i.test(v), rule: 'A CIF ID is 5 to 12 digits, optionally starting with CIF (for example CIF0013806).' },
   customerId: { test: (v) => /^\d{1,10}$/.test(v), rule: 'A customer ID is a number of up to 10 digits (for example 13806).' },
+  nid: { test: (v) => /^(\d{10}|\d{13}|\d{17})$/.test(v), rule: 'An NID has 10, 13 or 17 digits (for example 5102345678).' },
 };
 
 export const isValidId = (value: string, type: CustomerIdType) => FORMATS[type].test(value);
@@ -55,6 +58,7 @@ const SAMPLE: CustomerProfile = {
   name: 'Nafidul Alam',
   customerId: 13806,
   cifId: 'CIF0013806',
+  nid: '5102345678',
   status: 'Active',
   fatherName: 'Rabbi',
   motherName: 'Salma',
@@ -94,6 +98,7 @@ function generated(value: string, type: CustomerIdType): CustomerProfile {
     name: `${first} ${last}`,
     customerId,
     cifId: `CIF${cifDigits}`,
+    nid: type === 'nid' ? value : `${between(rand, 1, 9)}${String(between(rand, 0, 999999999)).padStart(9, '0')}`,
     status,
     fatherName: pick(rand, FATHERS),
     motherName: pick(rand, MOTHERS),
@@ -110,9 +115,58 @@ export function findCustomer(value: string, type: CustomerIdType): CustomerProfi
   const isSample =
     (type === 'phone' && localPhone(value) === SAMPLE.mobile) ||
     (type === 'customerId' && Number(value) === SAMPLE.customerId) ||
-    (type === 'cif' && value.replace(/^CIF/i, '').replace(/^0+/, '') === String(SAMPLE.customerId));
+    (type === 'cif' && value.replace(/^CIF/i, '').replace(/^0+/, '') === String(SAMPLE.customerId)) ||
+    (type === 'nid' && value === SAMPLE.nid);
   return isSample ? SAMPLE : generated(value, type);
 }
+
+/* ---------- Customer Search form ---------- */
+
+export const SEARCH_FIELDS: { key: keyof CustomerSearchValues; idType: CustomerIdType; label: string; placeholder: string }[] = [
+  { key: 'phone', idType: 'phone', label: 'Phone Number', placeholder: 'e.g. 01789833786' },
+  { key: 'cif', idType: 'cif', label: 'CIF ID', placeholder: 'e.g. CIF0013806' },
+  { key: 'nid', idType: 'nid', label: 'NID', placeholder: 'e.g. 5102345678' },
+];
+
+export const EMPTY_SEARCH: CustomerSearchValues = { phone: '', cif: '', nid: '' };
+
+/** A value as it is searched: no spaces or dashes, and CIF IDs in capitals. */
+export const normalizeSearchValue = (key: keyof CustomerSearchValues, value: string) => {
+  const v = value.replace(/[\s-]+/g, '');
+  return key === 'cif' ? v.toUpperCase() : v;
+};
+
+export type CustomerSearchErrors = Partial<Record<keyof CustomerSearchValues | 'form', string>>;
+
+/** No field is required, but at least one must be filled in, and each one filled in must be valid. */
+export function validateCustomerSearch(values: CustomerSearchValues): CustomerSearchErrors {
+  const errors: CustomerSearchErrors = {};
+  const filled = SEARCH_FIELDS.filter((f) => normalizeSearchValue(f.key, values[f.key]));
+  if (!filled.length) errors.form = 'Enter at least one: phone number, CIF ID or NID.';
+  for (const f of filled) if (!isValidId(normalizeSearchValue(f.key, values[f.key]), f.idType)) errors[f.key] = idRule(f.idType);
+  return errors;
+}
+
+/** The fields the user filled in, as label and value, for "found by" lines. */
+export const searchedBy = (values: CustomerSearchValues) =>
+  SEARCH_FIELDS.map((f) => ({ label: f.label, value: normalizeSearchValue(f.key, values[f.key]) })).filter((f) => f.value);
+
+/** The customer matching every detail the user gave, or `null` when the form isn't valid. */
+export function searchCustomers(values: CustomerSearchValues): CustomerProfile | null {
+  if (Object.keys(validateCustomerSearch(values)).length) return null;
+  const v = (key: keyof CustomerSearchValues) => normalizeSearchValue(key, values[key]);
+  const first = SEARCH_FIELDS.find((f) => v(f.key))!;
+  const found = findCustomer(v(first.key), first.idType)!;
+  const cifDigits = v('cif').replace(/^CIF/, '');
+  return {
+    ...found,
+    ...(v('phone') ? { mobile: localPhone(v('phone')) } : {}),
+    ...(cifDigits ? { cifId: `CIF${cifDigits}`, customerId: Number(cifDigits) } : {}),
+    ...(v('nid') ? { nid: v('nid') } : {}),
+  };
+}
+
+export const CUSTOMER_SEARCH_INTRO = "Let's find the customer. Fill in **at least one** of the details below (phone number, CIF ID or NID), then select **Search**.";
 
 /* ---------- Display ---------- */
 
@@ -154,7 +208,7 @@ export const customerInvalidText = (query: string, type: CustomerIdType) =>
   `**${query}** doesn't look like a valid ${ID_TYPE_LABELS[type]}. ${idRule(type)} You can search it as a different kind of ID below.`;
 
 export const customerChooseText = (query: string) =>
-  `I'll look up the customer for **${query}**. Is it a phone number, a CIF ID or a customer ID? Choose one and I'll search.`;
+  `I'll look up the customer for **${query}**. Is it a phone number, a CIF ID, a customer ID or an NID? Choose one and I'll search.`;
 
 export const NO_CUSTOMER_QUERY_TEXT =
-  "I can look up a customer, but I need their phone number, CIF ID or customer ID. Try: **Give me customer information for this Phone Number '01789833786'**.";
+  "I can look up a customer, but I need their phone number, CIF ID, customer ID or NID. Try: **Give me customer information for this Phone Number '01789833786'**.";

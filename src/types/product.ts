@@ -1,4 +1,4 @@
-import type { CustomerLookupAction } from './customer';
+import type { CustomerLookupAction, CustomerSearchAction } from './customer';
 import type { ReportAction } from './report';
 
 /**
@@ -167,4 +167,4 @@ export interface ProductSetupAction {
   completedAt?: number;
 }
 
-export type MessageAction = ProductSetupAction | ReportAction | CustomerLookupAction;
+export type MessageAction = ProductSetupAction | ReportAction | CustomerLookupAction | CustomerSearchAction;

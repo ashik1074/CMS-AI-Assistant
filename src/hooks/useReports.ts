@@ -3,8 +3,8 @@ import type { ProductApi } from '../services/productService';
 import type { Conversation } from '../types/conversation';
 import type { MessageAction, ProductRecord } from '../types/product';
 import type { ProductGroupBy, ProductReportAction, ReportAction, ReportChart, TransactionReportAction } from '../types/report';
-import type { CustomerIdType, CustomerLookupAction } from '../types/customer';
-import { isValidId } from '../utils/customerData';
+import type { CustomerIdType, CustomerLookupAction, CustomerSearchAction, CustomerSearchValues } from '../types/customer';
+import { isValidId, validateCustomerSearch } from '../utils/customerData';
 import type { ConversationsAction } from './conversationReducer';
 
 export interface ReportHandlers {
@@ -22,6 +22,10 @@ export interface ReportHandlers {
   searchCustomer: (messageId: string, idType: CustomerIdType) => void;
   /** Go back to choosing the kind of ID, e.g. after a value didn't fit the first choice. */
   rechooseCustomerIdType: (messageId: string) => void;
+  /** The Customer Search form was filled in: search, then show the customer. */
+  submitCustomerSearch: (messageId: string, values: CustomerSearchValues) => void;
+  /** Opens a new, empty Customer Search form in the chat. */
+  startCustomerSearch?: () => void;
 }
 
 export const REPORT_DELAY_MS = 3000;
@@ -39,6 +43,7 @@ interface UseReportsParams {
 }
 
 const lookupOf = (action: MessageAction | undefined) => (action?.type === 'customerLookup' ? action : undefined);
+const searchOf = (action: MessageAction | undefined) => (action?.type === 'customerSearch' ? action : undefined);
 
 export function useReports({ productApi, dispatch, getConversation, conversationId, delayMs = REPORT_DELAY_MS, customerSearchMs = CUSTOMER_SEARCH_MS }: UseReportsParams) {
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -95,6 +100,28 @@ export function useReports({ productApi, dispatch, getConversation, conversation
     [conversationId, customerSearchMs, getConversation, patchLookup],
   );
 
+  const patchSearch = useCallback(
+    (cid: string, messageId: string, changes: Partial<CustomerSearchAction>) =>
+      dispatch({ type: 'updateMessage', conversationId: cid, messageId, patch: (m) => (m.action?.type === 'customerSearch' ? { action: { ...m.action, ...changes } } : {}) }),
+    [dispatch],
+  );
+
+  const submitCustomerSearch = useCallback(
+    (messageId: string, values: CustomerSearchValues) => {
+      const cid = conversationId;
+      const action = searchOf(getConversation(cid)?.messages.find((m) => m.id === messageId)?.action);
+      if (!cid || !action || action.status !== 'collecting' || Object.keys(validateCustomerSearch(values)).length) return;
+      patchSearch(cid, messageId, { status: 'searching', values });
+      const timer = setTimeout(() => {
+        timers.current.delete(timer);
+        const current = searchOf(getLatest.current(cid)?.messages.find((m) => m.id === messageId)?.action);
+        if (current?.status === 'searching') patchSearch(cid, messageId, { status: 'found', searchedAt: Date.now() });
+      }, customerSearchMs);
+      timers.current.add(timer);
+    },
+    [conversationId, customerSearchMs, getConversation, patchSearch],
+  );
+
   const handlers: ReportHandlers = useMemo(
     () => ({
       delayMs,
@@ -105,8 +132,9 @@ export function useReports({ productApi, dispatch, getConversation, conversation
       customerSearchMs,
       searchCustomer,
       rechooseCustomerIdType: (messageId) => conversationId && patchLookup(conversationId, messageId, { status: 'choosing', idType: null, idTypeFromPrompt: false }),
+      submitCustomerSearch,
     }),
-    [conversationId, customerSearchMs, delayMs, generate, patch, patchLookup, productApi, searchCustomer],
+    [conversationId, customerSearchMs, delayMs, generate, patch, patchLookup, productApi, searchCustomer, submitCustomerSearch],
   );
 
   return handlers;

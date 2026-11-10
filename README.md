@@ -2,6 +2,10 @@
 
 A responsive chat app that looks and behaves like an LLM chat product. **No AI model, API key, backend, or network request is involved.** Every answer comes from a local mock response engine. The engine streams text, simulates thinking and multi-step progress, and can simulate failures.
 
+## Customer Search
+
+Pick **Customer Search** in the composer's mode menu and an empty search form appears in the chat, with **Phone Number**, **CIF ID** and **NID**. No field is required, but at least one must be filled in, and each one given must be in a valid format. After a short search the chat shows the customer's basic information (name, IDs, NID, parents' names, date of birth, mobile number, email and registration date). **Search another customer** opens a new form. While the mode is on, a message with an ID in it (for example `NID 5102345678`) is looked up too. Profiles are generated in the browser: the same ID always gives the same customer.
+
 ## Token usage
 
 Each response shows the tokens it used. While it is generating, a live counter shows the input tokens and the output tokens so far; when it finishes (or is stopped), the total appears next to the response actions, with the input and output split. The demo has no model, so the counts are estimates made in the browser (`src/utils/tokens.ts`) and are shown with a ~. A real backend can report its own counts in the `usage` field of the `started`, `completed` and `cancelled` events, and the app shows those instead.

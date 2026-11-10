@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AIService, Attachment, ChatMode, Feedback } from '../types/chat';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AIService, Attachment, ChatMode, Feedback, Message } from '../types/chat';
+import { CUSTOMER_SEARCH_INTRO, EMPTY_SEARCH } from '../utils/customerData';
 import { conversationService as defaultConversationService, type LocalConversationService } from '../services/conversationService';
 import { mockAIService } from '../services/mockAIService';
 import { useChat } from '../hooks/useChat';
@@ -288,6 +289,47 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
     [chat, activeId, toast, projects],
   );
 
+  /**
+   * Customer Search, picked in the composer: adds an empty search form to the open chat,
+   * or starts a chat with it (inside the project, when picked on a project page).
+   */
+  const startCustomerSearch = useCallback(
+    (projectId?: string) => {
+      if (generating) {
+        toast.show('Please wait for the current response to finish, or stop it first.');
+        return;
+      }
+      const now = Date.now();
+      const form = (conversationId: string): Message => ({
+        id: createId(),
+        conversationId,
+        role: 'assistant',
+        content: CUSTOMER_SEARCH_INTRO,
+        createdAt: now,
+        status: 'completed',
+        action: { type: 'customerSearch', status: 'collecting', values: { ...EMPTY_SEARCH } },
+      });
+      if (active && !projectId) {
+        store.dispatch({ type: 'addMessages', conversationId: active.id, messages: [form(active.id)] });
+        return;
+      }
+      const id = createId();
+      store.dispatch({ type: 'create', conversation: { id, title: 'Customer Search', createdAt: now, updatedAt: now, messages: [form(id)], ...(projectId ? { projectId } : {}) } });
+      if (projectId) projects.touch(projectId);
+      navigate({ name: 'conversation', conversationId: id });
+    },
+    [generating, active, store, projects, navigate, toast],
+  );
+  // The handlers below call the latest version through a ref, so they stay the same while a response
+  // streams; otherwise every message in the chat would redraw on each streamed word.
+  const startCustomerSearchRef = useRef(startCustomerSearch);
+  useEffect(() => {
+    startCustomerSearchRef.current = startCustomerSearch;
+  }, [startCustomerSearch]);
+  const onModeSelect = useCallback((mode: ChatMode) => mode === 'customerSearch' && startCustomerSearchRef.current(), []);
+  const onProjectModeSelect = useCallback((mode: ChatMode) => mode === 'customerSearch' && routeProjectId && startCustomerSearchRef.current(routeProjectId), [routeProjectId]);
+  const reportHandlers = useMemo(() => ({ ...reports, startCustomerSearch: () => startCustomerSearchRef.current() }), [reports]);
+
   /** Starts a new chat inside the open project. */
   const startProjectChat = useCallback(
     (text: string, attachments: Attachment[], mode: ChatMode) => (routeProjectId ? send(text, attachments, mode, routeProjectId) : false),
@@ -479,6 +521,7 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
           conversations={store.conversations.filter((c) => c.projectId === route.projectId)}
           inputRef={inputRef}
           onStartChat={startProjectChat}
+          onModeSelect={onProjectModeSelect}
           onOpenChat={selectConversation}
           onRemoveChat={(id) => moveConversation(id, null)}
           onAddChats={() => setAddChatsOpen(true)}
@@ -493,13 +536,14 @@ function ChatApp({ aiService = mockAIService, conversationService = defaultConve
           generating={generating}
           inputRef={inputRef}
           onSend={send}
+          onModeSelect={onModeSelect}
           onStop={stop}
           onRegenerate={regenerate}
           onEditSubmit={editSubmit}
           onFeedback={feedback}
           onNewChat={newChat}
           productSetup={productSetup.handlers}
-          reports={reports}
+          reports={reportHandlers}
           mascotRideMs={mascotRideMs}
         />
       )}

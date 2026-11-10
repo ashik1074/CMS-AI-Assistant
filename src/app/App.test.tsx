@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AIService, GenerationOptions } from '../types/chat';
@@ -300,15 +300,15 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Assistant mode: General' }));
     const menu = screen.getByRole('menu', { name: 'Assistant mode' });
     expect(within(menu).getByRole('menuitemradio', { name: /General/ })).toHaveAttribute('aria-checked', 'true');
-    await user.click(within(menu).getByRole('menuitemradio', { name: /Reporting/ }));
+    await user.click(within(menu).getByRole('menuitemradio', { name: /Agentic Task/ }));
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 
     await user.type(composer(), 'Monthly fee summary{Enter}');
-    expect(screen.getByTestId('message-mode')).toHaveTextContent('Reporting');
+    expect(screen.getByTestId('message-mode')).toHaveTextContent('Agentic Task');
     await waitForStatus('completed');
-    expect(prompts.at(-1)).toEqual({ prompt: 'Monthly fee summary', mode: 'reporting' });
+    expect(prompts.at(-1)).toEqual({ prompt: 'Monthly fee summary', mode: 'agentic' });
     // The mode stays selected for the next message.
-    expect(screen.getByRole('button', { name: 'Assistant mode: Reporting' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assistant mode: Agentic Task' })).toBeInTheDocument();
   });
 
   it('shows the chat title only, and the user role with an account menu', async () => {
@@ -979,11 +979,11 @@ describe('Customer lookup', { timeout: 30000 }, () => {
     const card = await screen.findByTestId('customer-lookup');
     expect(card).toHaveAttribute('data-status', 'choosing');
     const options = within(card).getAllByRole('radio');
-    expect(options.map((o) => o.closest('label')!.textContent)).toEqual([expect.stringContaining('Phone Number'), expect.stringContaining('CIF ID'), expect.stringContaining('Customer ID')]);
+    expect(options.map((o) => o.closest('label')!.textContent)).toEqual([expect.stringContaining('Phone Number'), expect.stringContaining('CIF ID'), expect.stringContaining('Customer ID'), expect.stringContaining('NID')]);
     options.forEach((o) => expect(o).not.toBeChecked());
 
     await user.click(within(card).getByRole('button', { name: /Search customer/ }));
-    expect(within(card).getByRole('alert')).toHaveTextContent('Choose whether this is a phone number, CIF ID or customer ID.');
+    expect(within(card).getByRole('alert')).toHaveTextContent('Choose whether this is a phone number, CIF ID, customer ID or NID.');
 
     await user.click(within(card).getByRole('radio', { name: /Phone Number/ }));
     await user.click(within(card).getByRole('button', { name: /Search customer/ }));
@@ -1013,5 +1013,85 @@ describe('Customer lookup', { timeout: 30000 }, () => {
     await user.click(within(card).getByRole('radio', { name: /Phone Number/ }));
     await user.click(within(card).getByRole('button', { name: /Search customer/ }));
     await waitFor(() => expect(screen.getByTestId('customer-lookup')).toHaveAttribute('data-status', 'found'));
+  });
+});
+
+describe('Customer Search mode', { timeout: 30000 }, () => {
+  function setupSearch() {
+    const user = userEvent.setup();
+    render(<App aiService={fastService()} conversationService={new LocalConversationService(localStorage)} customerSearchMs={150} />);
+    return user;
+  }
+  const pickCustomerSearch = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByTestId('mode-trigger'));
+    await user.click(within(screen.getByRole('menu', { name: 'Assistant mode' })).getByRole('menuitemradio', { name: /Customer Search/ }));
+  };
+  const forms = () => screen.getAllByTestId('customer-search');
+
+  it('opens an empty search form, needs at least one valid detail, then shows the customer', async () => {
+    const user = setupSearch();
+    await pickCustomerSearch(user);
+    expect(screen.getByRole('button', { name: 'Assistant mode: Customer Search' })).toBeInTheDocument();
+
+    const form = await screen.findByRole('form', { name: 'Customer Search' });
+    expect(form).toHaveAttribute('data-status', 'collecting');
+    const phone = within(form).getByLabelText('Phone Number');
+    expect(phone).toHaveValue('');
+    expect(phone).toHaveFocus();
+    expect(within(form).getByLabelText('CIF ID')).toHaveValue('');
+    expect(within(form).getByLabelText('NID')).toHaveValue('');
+    // A form, not an answer: nothing to copy, rate or regenerate.
+    expect(within(lastAssistant()).queryByRole('toolbar', { name: 'Response actions' })).not.toBeInTheDocument();
+
+    // Nothing filled in.
+    await user.click(within(form).getByRole('button', { name: 'Search' }));
+    expect(within(form).getByRole('alert')).toHaveTextContent('Enter at least one: phone number, CIF ID or NID.');
+
+    // A detail in the wrong format.
+    await user.type(within(form).getByLabelText('NID'), '123');
+    await user.click(within(form).getByRole('button', { name: 'Search' }));
+    expect(within(form).getByText(/An NID has 10, 13 or 17 digits/)).toBeInTheDocument();
+    expect(within(form).getByLabelText('NID')).toHaveFocus();
+
+    // Only the CIF ID: enough to search.
+    await user.clear(within(form).getByLabelText('NID'));
+    await user.type(within(form).getByLabelText('CIF ID'), 'cif0013806');
+    await user.click(within(form).getByRole('button', { name: 'Search' }));
+    expect(forms()[0]).toHaveAttribute('data-status', 'searching');
+    await waitFor(() => expect(forms()[0]).toHaveAttribute('data-status', 'found'));
+    const profile = forms()[0];
+    expect(within(profile).getByRole('heading', { name: 'Mr. Nafidul Alam' })).toBeInTheDocument();
+    expect(within(profile).getByText('5102345678')).toBeInTheDocument();
+    expect(profile).toHaveTextContent('Found by CIF ID CIF0013806');
+
+    // Another search, in the same chat.
+    await user.click(within(profile).getByRole('button', { name: 'Search another customer' }));
+    await waitFor(() => expect(forms()).toHaveLength(2));
+    expect(forms()[1]).toHaveAttribute('data-status', 'collecting');
+  });
+
+  it('uses every detail given, and keeps the result after a reload', async () => {
+    const user = setupSearch();
+    await pickCustomerSearch(user);
+    const form = await screen.findByRole('form', { name: 'Customer Search' });
+    await user.type(within(form).getByLabelText('Phone Number'), '01712345678');
+    await user.type(within(form).getByLabelText('NID'), '1987654321{Enter}');
+    await waitFor(() => expect(forms()[0]).toHaveAttribute('data-status', 'found'));
+    expect(forms()[0]).toHaveTextContent('01712345678');
+    expect(forms()[0]).toHaveTextContent('1987654321');
+    expect(forms()[0]).toHaveTextContent('Found by Phone Number 01712345678, NID 1987654321');
+
+    cleanup();
+    render(<App aiService={fastService()} conversationService={new LocalConversationService(localStorage)} />);
+    expect(await screen.findByTestId('customer-search')).toHaveAttribute('data-status', 'found');
+  });
+
+  it('looks up an ID typed in Customer Search mode', async () => {
+    const user = setupSearch();
+    await pickCustomerSearch(user);
+    await screen.findByRole('form', { name: 'Customer Search' });
+    await user.type(composer(), 'NID 5102345678{Enter}');
+    await waitFor(() => expect(screen.getByTestId('customer-lookup')).toHaveAttribute('data-status', 'found'), { timeout: 4000 });
+    expect(screen.getByTestId('customer-lookup')).toHaveTextContent('Mr. Nafidul Alam');
   });
 });

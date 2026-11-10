@@ -18,7 +18,7 @@ export interface SharedMessage {
   mode?: ChatMode;
 }
 
-const MODES = new Set<ChatMode>(['general', 'reporting', 'agentic', 'analytics']);
+const MODES = new Set<ChatMode>(['general', 'customerSearch', 'agentic', 'analytics']);
 /** Rejects absurd payloads before decompressing or parsing them. */
 const MAX_PAYLOAD_LENGTH = 2_000_000;
 const MAX_DECODED_BYTES = 5_000_000;

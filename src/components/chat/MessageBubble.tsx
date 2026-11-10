@@ -10,6 +10,7 @@ import { ErrorState } from '../common/ErrorState';
 import { ProductSetupCard, type ProductSetupHandlers } from '../agent/ProductSetupCard';
 import { ProductReportCard, TransactionReportCard } from '../reports/ReportCards';
 import { CustomerLookupCard } from '../customers/CustomerLookupCard';
+import { CustomerSearchCard } from '../customers/CustomerSearchCard';
 import type { ReportHandlers } from '../../hooks/useReports';
 import { Markdown } from './Markdown';
 import { ThinkingMascot } from '../mascot/ThinkingMascot';
@@ -164,7 +165,8 @@ function UserMessage({ message, busy, onEditSubmit, readOnly }: MessageBubblePro
 function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, readOnly, productSetup, reports }: MessageBubbleProps) {
   const streaming = message.status === 'streaming';
   const inFlight = message.status === 'pending' || streaming;
-  const showActions = !inFlight && message.status !== 'failed' && message.content.length > 0;
+  // A Customer Search form is not an answer to copy, rate or regenerate.
+  const showActions = !inFlight && message.status !== 'failed' && message.content.length > 0 && message.action?.type !== 'customerSearch';
   const showUsage = !inFlight && message.status !== 'failed' && !!message.usage;
 
   return (
@@ -191,6 +193,9 @@ function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, rea
         {message.action?.type === 'productReport' && message.status === 'completed' && <ProductReportCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} />}
         {message.action?.type === 'transactionReport' && message.status === 'completed' && (
           <TransactionReportCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} />
+        )}
+        {message.action?.type === 'customerSearch' && message.status === 'completed' && (
+          <CustomerSearchCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} createdAt={message.createdAt} />
         )}
         {message.action?.type === 'customerLookup' && message.status === 'completed' && (
           <CustomerLookupCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} />
