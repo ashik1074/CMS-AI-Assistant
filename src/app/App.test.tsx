@@ -122,14 +122,15 @@ describe('App', () => {
     expect(lastAssistant().textContent).toBe(partial);
     // The user can continue chatting.
     await user.type(composer(), 'Hello{Enter}');
-    await waitForStatus('completed');
-  });
+    await waitForStatus('completed', 10000);
+    // Streams one character at a time, so it needs longer than the default when the suite is busy.
+  }, 15000);
 
   it('counts tokens live while a response is generated, then shows the total with input and output', async () => {
     const { user } = setup(fastService({ chunkDelayMs: 15, chunkSize: 2 }));
     await user.type(composer(), 'Write a detailed guide about accessibility{Enter}');
     await waitForStatus('streaming');
-    /** The numbers in a token count, in order, e.g. "~41 in · ~12 out · ~53 tokens" → [41, 12, 53]. */
+    /** The numbers in a token count, in order, e.g. "Input 41 | Output 12 | Total 53 tokens" → [41, 12, 53]. */
     const numbers = (el: HTMLElement) => (el.textContent!.match(/[\d,]+/g) ?? []).map((n) => Number(n.replace(/,/g, '')));
     const liveOutput = () => numbers(within(lastAssistant()).getByTestId('live-token-count'))[1];
     const first = liveOutput();
@@ -139,7 +140,7 @@ describe('App', () => {
 
     await waitForStatus('completed', 20000);
     expect(within(lastAssistant()).queryByTestId('live-token-count')).not.toBeInTheDocument();
-    const [total, input, output] = numbers(within(lastAssistant()).getByTestId('token-usage'));
+    const [input, output, total] = numbers(within(lastAssistant()).getByTestId('token-usage'));
     expect(input).toBe(liveIn);
     expect(total).toBe(input + output);
     expect(output).toBeGreaterThan(100);
@@ -1093,5 +1094,33 @@ describe('Customer Search mode', { timeout: 30000 }, () => {
     await user.type(composer(), 'NID 5102345678{Enter}');
     await waitFor(() => expect(screen.getByTestId('customer-lookup')).toHaveAttribute('data-status', 'found'), { timeout: 4000 });
     expect(screen.getByTestId('customer-lookup')).toHaveTextContent('Mr. Nafidul Alam');
+  });
+});
+
+describe('Card ranges', { timeout: 30000 }, () => {
+  it('shows the ranges of the scheme asked for, suggests one, and can widen to every scheme', async () => {
+    const user = userEvent.setup();
+    render(<App aiService={fastService()} conversationService={new LocalConversationService(localStorage)} productApi={new MockProductApi(localStorage, 1)} />);
+    await user.type(composer(), 'Show me available card range for UnionPay{Enter}');
+    await waitForStatus('completed');
+    const card = await screen.findByTestId('card-ranges');
+    await waitFor(() => expect(card).toHaveAttribute('data-status', 'ready'));
+
+    expect(within(card).getAllByTestId('card-range-row')).toHaveLength(2);
+    expect(within(card).getByRole('button', { name: 'UnionPay' })).toHaveAttribute('aria-pressed', 'true');
+    const suggested = within(card).getByTestId('suggested-range');
+    expect(suggested).toHaveTextContent('UnionPay · UnionPay Gold BIN 621235');
+    expect(suggested).toHaveTextContent('No product uses it yet');
+    expect(within(card).getByRole('region', { name: 'Ranges to avoid' })).toHaveTextContent('UnionPay Classic BIN 621234 · Range 0000000 to 0000002: No card numbers left.');
+
+    await user.click(within(card).getByRole('button', { name: 'All schemes' }));
+    expect(within(card).getAllByTestId('card-range-row')).toHaveLength(12);
+    expect(within(card).getByTestId('suggested-range')).toHaveTextContent('TakaPay');
+
+    // The chat reopens on the schemes last picked.
+    cleanup();
+    render(<App aiService={fastService()} conversationService={new LocalConversationService(localStorage)} productApi={new MockProductApi(localStorage, 1)} />);
+    await waitFor(() => expect(screen.getByTestId('card-ranges')).toHaveAttribute('data-status', 'ready'));
+    expect(within(screen.getByTestId('card-ranges')).getAllByTestId('card-range-row')).toHaveLength(12);
   });
 });

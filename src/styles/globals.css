@@ -298,9 +298,13 @@
   transform-origin: center;
   animation: mascot-shadow 3.2s ease-in-out infinite;
 }
+/* Eyes blink every 5 seconds; their glow pulses softly. */
 .mascot .mascot-eyes {
   transform-origin: center;
-  animation: mascot-blink 4.5s infinite;
+  animation: mascot-blink 5s infinite;
+}
+.mascot .mascot-eye-glow {
+  animation: mascot-glow 2.5s ease-in-out infinite;
 }
 .mascot .mascot-flame {
   transform-origin: top center;
@@ -318,7 +322,7 @@
 }
 /* Thinking: eyes look around while the arm taps the "chin". */
 .mascot-thinking .mascot-eyes {
-  animation: mascot-look 2.4s ease-in-out infinite, mascot-blink 4.5s infinite;
+  animation: mascot-look 2.4s ease-in-out infinite, mascot-blink 5s infinite;
 }
 .mascot-thinking .mascot-arm-right {
   animation: mascot-ponder 1.2s ease-in-out infinite alternate;
@@ -359,8 +363,12 @@
   50% { transform: scaleX(0.75); opacity: 0.07; }
 }
 @keyframes mascot-blink {
-  0%, 90%, 100% { transform: scaleY(1); }
-  94% { transform: scaleY(0.1); }
+  0%, 94%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(0.08); }
+}
+@keyframes mascot-glow {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
 }
 @keyframes mascot-flame {
   from { transform: scaleY(1); opacity: 0.95; }
@@ -429,6 +437,100 @@
 @keyframes rocket-puff {
   from { transform: translateX(0) scale(0.4); opacity: 0.9; }
   to { transform: translateX(-34px) scale(1.6); opacity: 0; }
+}
+
+/* Banking tricks (click the mascot). Delays and durations are set inline, as shares of the ride. */
+.bank-coin-fall,
+.bank-coin-drop,
+.bank-note-flutter,
+.bank-pop-float,
+.bank-prop-life,
+.bank-card-tap,
+.bank-piggy-jiggle,
+.bank-nfc-wave {
+  animation-fill-mode: both;
+  animation-timing-function: ease-out;
+}
+.bank-coin-fall { animation-name: bank-coin-fall; animation-timing-function: ease-in; }
+.bank-coin-drop { animation-name: bank-coin-drop; animation-timing-function: ease-in; }
+.bank-note-flutter { animation-name: bank-note-flutter; animation-timing-function: ease-in-out; }
+.bank-pop-float { animation-name: bank-pop-float; }
+.bank-prop-life { animation-name: bank-prop-life; animation-timing-function: linear; }
+.bank-card-tap { animation-name: bank-card-tap; animation-timing-function: ease-in-out; }
+.bank-piggy-jiggle { animation-name: bank-piggy-jiggle; animation-fill-mode: none; transform-origin: 50% 100%; }
+.bank-nfc-wave {
+  animation-name: bank-nfc-wave;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 9999px;
+  border: 2.5px solid #38bdf8;
+}
+.terminal-paid {
+  animation: bank-paid 250ms ease-out var(--paid-at, 0ms) both;
+}
+.chart-trail {
+  stroke-dasharray: 44;
+  animation: chart-trail 1.2s ease-out infinite;
+}
+@keyframes bank-coin-fall {
+  0% { opacity: 0; transform: translate(var(--from-x, 0px), -175px) rotateY(0deg); }
+  12% { opacity: 1; }
+  82% { opacity: 1; transform: translate(0, 0) rotateY(540deg) scale(1); }
+  100% { opacity: 0; transform: translate(0, 4px) rotateY(720deg) scale(0.3); }
+}
+@keyframes bank-coin-drop {
+  0% { opacity: 0; transform: translateY(-22px); }
+  15% { opacity: 1; }
+  85% { opacity: 1; transform: translateY(14px) scaleX(0.8); }
+  100% { opacity: 0; transform: translateY(18px) scaleX(0.3); }
+}
+@keyframes bank-note-flutter {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.3) rotate(0deg); }
+  16% { opacity: 1; transform: translate(var(--dx), -135px) scale(1) rotate(var(--rot)); }
+  36% { transform: translate(calc(var(--dx) + 18px), -80px) rotate(calc(var(--rot) * -1)); }
+  56% { transform: translate(calc(var(--dx) - 14px), -24px) rotate(var(--rot)); }
+  78% { opacity: 1; transform: translate(calc(var(--dx) + 12px), 40px) rotate(calc(var(--rot) * -1)); }
+  100% { opacity: 0; transform: translate(var(--dx), 105px) rotate(var(--rot)); }
+}
+@keyframes bank-pop-float {
+  0% { opacity: 0; transform: translateY(10px) scale(0.4); }
+  18% { opacity: 1; transform: translateY(0) scale(1.12); }
+  28% { transform: scale(1); }
+  80% { opacity: 1; transform: translateY(-14px); }
+  100% { opacity: 0; transform: translateY(-26px); }
+}
+@keyframes bank-prop-life {
+  0%, 10% { opacity: 0; transform: translateY(16px) scale(0.2); }
+  16% { opacity: 1; transform: translateY(-4px) scale(1.08); }
+  19%, 86% { opacity: 1; transform: none; }
+  94%, 100% { opacity: 0; transform: translateY(16px) scale(0.2); }
+}
+@keyframes bank-card-tap {
+  0% { opacity: 0; transform: translate(calc(var(--side) * 18px), 6px) scale(0.4); }
+  14% { opacity: 1; transform: translate(calc(var(--side) * 30px), 2px) scale(1); }
+  30%, 76% { opacity: 1; transform: translate(calc(var(--side) * 74px), -4px) rotate(calc(var(--side) * -14deg)); }
+  100% { opacity: 0; transform: translate(calc(var(--side) * 24px), 6px) scale(0.6); }
+}
+@keyframes bank-piggy-jiggle {
+  0%, 100% { transform: none; }
+  20% { transform: scale(1.12, 0.86); }
+  40% { transform: rotate(-8deg) scale(0.96, 1.06); }
+  60% { transform: rotate(6deg); }
+  80% { transform: rotate(-3deg); }
+}
+@keyframes bank-nfc-wave {
+  0% { opacity: 0; transform: scale(0.3); }
+  30% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.7); }
+}
+@keyframes bank-paid {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes chart-trail {
+  from { stroke-dashoffset: 44; }
+  to { stroke-dashoffset: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -519,6 +621,18 @@
 }
 .portal-form select option {
   color: initial;
+}
+
+/* Dark mode: let the browser draw its own controls dark too (dropdown lists, date pickers, scrollbars). */
+.dark {
+  color-scheme: dark;
+}
+.dark select option {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
+.dark select option:disabled {
+  color: #71717a;
 }
 
 /* A field the AI just filled in glows briefly. */

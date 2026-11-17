@@ -47,6 +47,9 @@ export function Mascot({ size = 80, mood = 'idle', className, label }: MascotPro
           <stop offset="0" stopColor="#1e2a55" />
           <stop offset="1" stopColor="#070b1f" />
         </radialGradient>
+        <filter id={g('glow')} x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="2.2" />
+        </filter>
       </defs>
 
       {/* Ground shadow: shrinks as the mascot rises. */}
@@ -88,10 +91,17 @@ export function Mascot({ size = 80, mood = 'idle', className, label }: MascotPro
         {/* Visor and face */}
         <ellipse cx="49" cy="44" rx="20" ry="14" fill={`url(#${g('visor')})`} />
         <g className="mascot-eyes">
-          <ellipse cx="42" cy="42" rx="3.3" ry="4.4" fill="#ffffff" />
-          <ellipse cx="56" cy="42" rx="3.3" ry="4.4" fill="#ffffff" />
+          {/* A soft cyan glow behind each eye; it blinks with them. */}
+          <g className="mascot-eye-glow" filter={`url(#${g('glow')})`}>
+            <ellipse cx="41.5" cy="41.5" rx="5.6" ry="6.8" fill="#38bdf8" />
+            <ellipse cx="56.5" cy="41.5" rx="5.6" ry="6.8" fill="#38bdf8" />
+          </g>
+          <ellipse cx="41.5" cy="41.5" rx="4.3" ry="5.6" fill="#e0f7ff" />
+          <ellipse cx="56.5" cy="41.5" rx="4.3" ry="5.6" fill="#e0f7ff" />
+          <circle cx="40.2" cy="39.4" r="1.3" fill="#ffffff" />
+          <circle cx="55.2" cy="39.4" r="1.3" fill="#ffffff" />
         </g>
-        <path d="M44 49 Q49 54 54 49" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+        <path d="M44.5 50.5 Q49 54.5 53.5 50.5" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
       </g>
     </svg>
   );

@@ -3,6 +3,7 @@ import type { ProductApi } from '../services/productService';
 import type { Conversation } from '../types/conversation';
 import type { MessageAction, ProductRecord } from '../types/product';
 import type { ProductGroupBy, ProductReportAction, ReportAction, ReportChart, TransactionReportAction } from '../types/report';
+import type { CardRangesAction } from '../types/cardRange';
 import type { CustomerIdType, CustomerLookupAction, CustomerSearchAction, CustomerSearchValues } from '../types/customer';
 import { isValidId, validateCustomerSearch } from '../utils/customerData';
 import type { ConversationsAction } from './conversationReducer';
@@ -24,6 +25,8 @@ export interface ReportHandlers {
   rechooseCustomerIdType: (messageId: string) => void;
   /** The Customer Search form was filled in: search, then show the customer. */
   submitCustomerSearch: (messageId: string, values: CustomerSearchValues) => void;
+  /** Saves the schemes picked on a card range report, so the chat reopens on them. */
+  updateCardRanges: (messageId: string, patch: Pick<CardRangesAction, 'schemes'>) => void;
   /** Opens a new, empty Customer Search form in the chat. */
   startCustomerSearch?: () => void;
 }
@@ -133,8 +136,10 @@ export function useReports({ productApi, dispatch, getConversation, conversation
       searchCustomer,
       rechooseCustomerIdType: (messageId) => conversationId && patchLookup(conversationId, messageId, { status: 'choosing', idType: null, idTypeFromPrompt: false }),
       submitCustomerSearch,
+      updateCardRanges: (messageId, changes) =>
+        conversationId && dispatch({ type: 'updateMessage', conversationId, messageId, patch: (m) => (m.action?.type === 'cardRanges' ? { action: { ...m.action, ...changes } } : {}) }),
     }),
-    [conversationId, customerSearchMs, delayMs, generate, patch, patchLookup, productApi, searchCustomer, submitCustomerSearch],
+    [conversationId, customerSearchMs, delayMs, dispatch, generate, patch, patchLookup, productApi, searchCustomer, submitCustomerSearch],
   );
 
   return handlers;

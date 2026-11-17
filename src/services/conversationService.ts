@@ -1,11 +1,13 @@
 import type { Attachment, ChatMode, Message, MessageStatus, ProcessingStep } from '../types/chat';
 import type { Conversation, ConversationService, StorageError, StorageResult } from '../types/conversation';
-import type { MessageAction, ProductField, ProductSetupAction, ProductSetupStatus } from '../types/product';
+import type { MarketSegment, MessageAction, ProductField, ProductSetupAction, ProductSetupStatus, ProductType } from '../types/product';
+import type { CardRangePurpose, CardRangesAction } from '../types/cardRange';
+import { SCHEMES } from './productCatalog';
 import type { ProductGroupBy, ProductReportAction, ProductReportStatus, ReportAction, ReportChart, TxnRange } from '../types/report';
 import { GROUPINGS } from '../utils/reportData';
 import type { CustomerIdType, CustomerLookupAction, CustomerSearchAction, CustomerSearchValues } from '../types/customer';
 import { isValidId, validateCustomerSearch } from '../utils/customerData';
-import { FIELD_LABELS, parseBasics, parseProductForm, parseProductPreferences } from '../utils/productDraft';
+import { FIELD_LABELS, MARKET_SEGMENTS, parseBasics, parseProductForm, parseProductPreferences, PRODUCT_TYPES } from '../utils/productDraft';
 
 export const STORAGE_VERSION = 1;
 export const CONVERSATIONS_KEY = `ai-chat:conversations:v${STORAGE_VERSION}`;
@@ -87,7 +89,18 @@ function parseCustomerLookup(raw: Record<string, unknown>): CustomerLookupAction
   return action;
 }
 
+function parseCardRanges(raw: Record<string, unknown>): CardRangesAction {
+  const schemes = Array.isArray(raw.schemes) ? raw.schemes.filter((id): id is number => isNum(id) && SCHEMES.some((s) => s.id === id)) : [];
+  const p = isObj(raw.purpose) ? raw.purpose : {};
+  const purpose: CardRangePurpose = {
+    ...(PRODUCT_TYPES.includes(p.productType as ProductType) ? { productType: p.productType as ProductType } : {}),
+    ...(MARKET_SEGMENTS.includes(p.segment as MarketSegment) ? { segment: p.segment as MarketSegment } : {}),
+  };
+  return { type: 'cardRanges', schemes: [...new Set(schemes)], ...(Object.keys(purpose).length ? { purpose } : {}), asOf: isNum(raw.asOf) ? raw.asOf : 0 };
+}
+
 function parseAction(raw: unknown): MessageAction | null {
+  if (isObj(raw) && raw.type === 'cardRanges') return parseCardRanges(raw);
   if (isObj(raw) && raw.type === 'customerLookup') return parseCustomerLookup(raw);
   if (isObj(raw) && raw.type === 'customerSearch') return parseCustomerSearch(raw);
   if (isObj(raw) && raw.type !== 'createProduct') return parseReport(raw);

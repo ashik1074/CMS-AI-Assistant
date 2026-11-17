@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANCHOR_X, ANCHOR_Y, RIDE_KINDS, flightKeyframes, pickRide, rideHasRocket } from './rocketFlight';
+import { ANCHOR_X, ANCHOR_Y, RIDE_KINDS, flightKeyframes, pickRide, rideScene, rideStage, rideVehicle } from './rocketFlight';
 
 const translate = (frame: Keyframe) => {
   const m = /translate3d\((-?[\d.]+)px, (-?[\d.]+)px, (-?[\d.]+)px\)/.exec(String(frame.transform));
@@ -88,9 +88,19 @@ describe('flightKeyframes', () => {
     }
   });
 
-  it('only the jetpack trick leaves the rocket behind', () => {
-    expect(RIDE_KINDS.filter((k) => !rideHasRocket(k))).toEqual(['jetpack']);
-    expect(RIDE_KINDS.length).toBeGreaterThanOrEqual(5);
+  it('has the rocket tricks and six banking tricks, each with its own vehicle or scene', () => {
+    expect(RIDE_KINDS.filter((k) => rideVehicle(k) === 'rocket')).toEqual(['orbit', 'corkscrew', 'loop', 'flyby']);
+    expect(RIDE_KINDS.filter((k) => rideScene(k))).toEqual(['coinShower', 'cashRain', 'piggyBank', 'tapToPay']);
+    expect(rideVehicle('cardSurf')).toBe('card');
+    expect(rideVehicle('growthArrow')).toBe('arrow');
+  });
+
+  it('plays the banking scenes on a stage above the mascot, or below it near the top of the window', () => {
+    expect(rideStage({ x: 960, y: 640 }, { width: 1920, height: 870 })).toMatchObject({ x: 960, y: 530, side: 1 });
+    expect(rideStage({ x: 300, y: 120 }, { width: 1280, height: 800 })).toMatchObject({ x: 300, y: 230, side: 1 });
+    // The mascot is on the stage in the middle of a scene trick.
+    const frames = flightKeyframes({ kind: 'coinShower', origin: { x: 960, y: 640 }, viewport: { width: 1920, height: 870 } });
+    expect(translate(frames[48]).y).toBeCloseTo(530, -1);
   });
 
   it('picks a random trick, never the one just shown', () => {

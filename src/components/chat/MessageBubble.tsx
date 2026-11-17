@@ -11,6 +11,7 @@ import { ProductSetupCard, type ProductSetupHandlers } from '../agent/ProductSet
 import { ProductReportCard, TransactionReportCard } from '../reports/ReportCards';
 import { CustomerLookupCard } from '../customers/CustomerLookupCard';
 import { CustomerSearchCard } from '../customers/CustomerSearchCard';
+import { CardRangesCard } from '../cardRanges/CardRangesCard';
 import type { ReportHandlers } from '../../hooks/useReports';
 import { Markdown } from './Markdown';
 import { ThinkingMascot } from '../mascot/ThinkingMascot';
@@ -194,6 +195,7 @@ function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, rea
         {message.action?.type === 'transactionReport' && message.status === 'completed' && (
           <TransactionReportCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} />
         )}
+        {message.action?.type === 'cardRanges' && message.status === 'completed' && <CardRangesCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} />}
         {message.action?.type === 'customerSearch' && message.status === 'completed' && (
           <CustomerSearchCard messageId={message.id} action={message.action} handlers={reports} readOnly={readOnly} createdAt={message.createdAt} />
         )}
@@ -221,7 +223,7 @@ function AssistantMessage({ message, isLast, busy, onRegenerate, onFeedback, rea
         )}
 
         {(showActions || showUsage || (message.revision ?? 0) > 0) && (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             {showActions && (
               <MessageActions
                 message={message}

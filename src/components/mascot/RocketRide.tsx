@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom';
 import { MascotRideContext, useMascotRide } from '../../hooks/useMascotRide';
 import { cn } from '../../utils/cn';
-import { ANCHOR_X, ANCHOR_Y, PERSPECTIVE, flightKeyframes, pickRide, rideDurationMs, rideHasRocket, type RideKind } from '../../utils/rocketFlight';
+import { ANCHOR_X, ANCHOR_Y, PERSPECTIVE, flightKeyframes, pickRide, rideDurationMs, rideScene, rideStage, rideVehicle, type RideKind } from '../../utils/rocketFlight';
+import { BankScene, CardBoard, ChartArrow } from './BankingProps';
 import { Mascot } from './Mascot';
 
 interface Point {
@@ -25,6 +26,10 @@ function RocketFlight({ kind, origin, durationMs }: { kind: RideKind; origin: Po
     }
   }, [kind, origin, durationMs]);
 
+  const vehicle = rideVehicle(kind);
+  const scene = rideScene(kind);
+  const stage = useMemo(() => rideStage(origin, { width: window.innerWidth, height: window.innerHeight }), [origin]);
+
   return (
     <div
       className="pointer-events-none fixed inset-0 z-[70] overflow-hidden"
@@ -33,12 +38,13 @@ function RocketFlight({ kind, origin, durationMs }: { kind: RideKind; origin: Po
       data-testid="rocket-ride"
       data-ride={kind}
     >
+      {scene && <BankScene scene={scene} stage={stage} durationMs={durationMs} layer="back" />}
       <div
         ref={ref}
         className="absolute left-0 top-0 h-[90px] w-[130px] opacity-0"
         style={{ transformOrigin: `${ANCHOR_X}px ${ANCHOR_Y}px`, transformStyle: 'preserve-3d', willChange: 'transform, opacity' }}
       >
-        {rideHasRocket(kind) ? (
+        {vehicle === 'rocket' ? (
           <div className="rocket-shake absolute inset-0">
             <Mascot size={46} mood="working" className="absolute left-[42px] top-0 text-zinc-900 dark:text-white" />
             <Rocket />
@@ -46,11 +52,24 @@ function RocketFlight({ kind, origin, durationMs }: { kind: RideKind; origin: Po
             <span className="rocket-puff rocket-puff-2 absolute left-0 top-[52px]" />
             <span className="rocket-puff rocket-puff-3 absolute left-0 top-[58px]" />
           </div>
+        ) : vehicle === 'card' ? (
+          // Surfing: the mascot stands on a giant bank card.
+          <div className="absolute inset-0">
+            <CardBoard />
+            <Mascot size={46} mood="idle" className="absolute left-[42px] top-0 text-zinc-900 dark:text-white" />
+          </div>
+        ) : vehicle === 'arrow' ? (
+          // Riding a rising chart arrow, astride like the rocket.
+          <div className="absolute inset-0">
+            <Mascot size={46} mood="working" className="absolute left-[42px] top-0 text-zinc-900 dark:text-white" />
+            <ChartArrow />
+          </div>
         ) : (
           // Jetpack: the mascot flies on its own thrusters, a little bigger, centred on the same anchor.
           <Mascot size={56} mood="working" className="absolute left-[37px] top-[-8px] text-zinc-900 dark:text-white" />
         )}
       </div>
+      {scene && <BankScene scene={scene} stage={stage} durationMs={durationMs} layer="front" />}
     </div>
   );
 }

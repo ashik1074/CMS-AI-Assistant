@@ -2,6 +2,10 @@
 
 A responsive chat app that looks and behaves like an LLM chat product. **No AI model, API key, backend, or network request is involved.** Every answer comes from a local mock response engine. The engine streams text, simulates thinking and multi-step progress, and can simulate failures.
 
+## Card ranges
+
+Ask "Show me available card range" and the assistant lists the card ranges of every scheme (VISA, Mastercard, UnionPay and TakaPay): each range's BIN, how many card numbers are still free, which saved products already use it, and a status (Available, Limited, Nearly full, Full). Name a scheme ("… for UnionPay", "… for Visa and Mastercard") to see only its ranges; the chips on the card switch schemes later. The assistant suggests the range to use and why: the most free card numbers, not shared with another product, and a BIN tier that suits the product when the prompt says what it is for ("for a corporate credit product" picks a Business BIN). Alternatives and ranges to avoid are listed too. Issued counts are sample figures (`src/utils/cardRanges.ts`); "Used by" reads the products saved in this browser.
+
 ## Customer Search
 
 Pick **Customer Search** in the composer's mode menu and an empty search form appears in the chat, with **Phone Number**, **CIF ID** and **NID**. No field is required, but at least one must be filled in, and each one given must be in a valid format. After a short search the chat shows the customer's basic information (name, IDs, NID, parents' names, date of birth, mobile number, email and registration date). **Search another customer** opens a new form. While the mode is on, a message with an ID in it (for example `NID 5102345678`) is looked up too. Profiles are generated in the browser: the same ID always gives the same customer.
@@ -117,13 +121,19 @@ Before running e2e tests for the first time, install the browser: `npx playwrigh
 - The email address is partly hidden. The result is saved with the chat.
 
 **Mascot**
-- A blue robot greets you on the welcome screen. It thinks in the chat while an answer is prepared, then rests beside the message box (working while the answer streams).
+- A blue robot with big glowing eyes (they blink every 5 seconds) greets you on the welcome screen. It thinks in the chat while an answer is prepared, then rests beside the message box (working while the answer streams).
 - **Click it** (anywhere it appears, even mid-answer) and it does a smooth 3D trick for 4–6 seconds, then lands back where it was. The trick is picked at random, never the same one twice in a row:
   - **Orbit:** a rocket loop into the screen, out to the roomier side and back past you.
   - **Corkscrew:** spirals up around a column twice on the rocket, then back down.
   - **Loop-the-loop:** flies out, loops a full circle like a stunt plane, turns round and flies home.
   - **Fly-by:** swoops right up to the camera in a barrel roll, then turns and zips home.
   - **Jetpack:** no rocket; blasts up on its own thrusters, backflips twice, spins and lands with a bounce.
+  - **Coin shower:** rises and catches a shower of gold Taka coins, then spins as "+৳1,000" pops up.
+  - **Cash rain:** spins and throws banknotes that flutter down around it ("Cashback!").
+  - **Piggy bank:** hops onto a piggy bank, drops a coin in the slot; the piggy jiggles and hearts float up ("Saved ৳100").
+  - **Tap to pay:** taps a bank card on a payment terminal; the screen turns green, "Paid ✓", and it cheers with a spin.
+  - **Card surf:** surfs out and back on a giant bank card, carving left and right.
+  - **Growth arrow:** rides a rising green chart arrow up in a zigzag, then glides home.
 - The page stays usable during a trick. Tricks are skipped when the user prefers reduced motion.
 
 **Settings:** theme (System, Light or Dark), mock streaming speed, simulated multi-step progress on or off, clear all conversations, reset preferences, and a notice that data stays in this browser.

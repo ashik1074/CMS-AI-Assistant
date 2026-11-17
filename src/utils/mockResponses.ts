@@ -2,6 +2,7 @@ import type { ChatHistoryEntry } from '../types/chat';
 import type { MessageAction } from '../types/product';
 import { basicsFromPreferences, basicsIntroText, buildProductDraft, collectProductPreferences, CREATE_PRODUCT_PATTERN } from './productDraft';
 import { customerChooseText, CUSTOMER_LOOKUP_PATTERN, customerFoundText, customerInvalidText, extractCustomerQuery, idTypeFromPrompt, isValidId, NO_CUSTOMER_QUERY_TEXT } from './customerData';
+import { CARD_RANGE_PATTERN, cardRangeReply } from './cardRanges';
 import { chartFromPrompt, extractPhone, NO_PHONE_TEXT, PRODUCT_REPORT_PATTERN, productReportIntro, TRANSACTION_REPORT_PATTERN, transactionIntro } from './reportData';
 
 /**
@@ -505,6 +506,9 @@ export const CAPABILITY_PROMPTS: CapabilityPrompt[] = [
   { group: 'Reports', prompt: 'Show me Products in Bar Chart', description: 'The same report as a bar chart.', scenario: 'productReport' },
   { group: 'Reports', prompt: 'Show me Products in Histogram', description: 'How products spread by live-from date, card validity or annual fee.', scenario: 'productReport' },
   { group: 'Reports', prompt: 'Show me visual transaction data for 01712345678', description: 'A transaction histogram for any phone number, with a date-range filter.', scenario: 'transactionReport' },
+  { group: 'Card ranges', prompt: 'Show me available card range', description: 'Card ranges of every scheme (VISA, Mastercard, UnionPay, TakaPay): free card numbers, the products using each one, and the range I suggest.', scenario: 'cardRanges' },
+  { group: 'Card ranges', prompt: 'Show me available card range for UnionPay', description: 'The same, for one scheme (or several: "for Visa and Mastercard").', scenario: 'cardRanges' },
+  { group: 'Card ranges', prompt: 'Which card range should I use for a credit product?', description: 'Suggests the range that suits the kind of product, and why.', scenario: 'cardRanges' },
   { group: 'Customers', prompt: "Give me customer information for this Phone Number '01789833786'", description: "Finds the customer and shows their profile: name, status, parents' names, date of birth, contact details and registration date.", scenario: 'customerLookup' },
   { group: 'Customers', prompt: "Give me customer information for CIF ID 'CIF0013806'", description: 'The same lookup by CIF ID (or say "Customer ID 13806").', scenario: 'customerLookup' },
   { group: 'Customers', prompt: "Give me customer information for '01789833786'", description: 'Asks whether the value is a phone number, CIF ID, customer ID or NID, then searches.', scenario: 'customerLookup' },
@@ -541,6 +545,19 @@ function capabilitiesText(): string {
 }
 
 export const MOCK_SCENARIOS: MockScenario[] = [
+  {
+    id: 'cardRanges',
+    patterns: [CARD_RANGE_PATTERN],
+    // Outranks "create a product …" in "Which card range should I use for a new product?".
+    weight: 30,
+    steps: [
+      { id: 'understand', label: 'Reading your request' },
+      { id: 'inventory', label: 'Checking the card range inventory' },
+      { id: 'rank', label: 'Ranking the ranges' },
+    ],
+    respond: () => '',
+    agent: (prompt, _history, now) => cardRangeReply(prompt, now),
+  },
   {
     id: 'productReport',
     patterns: [PRODUCT_REPORT_PATTERN],

@@ -14,9 +14,23 @@ const SAMPLES = 120;
  * - `loop`: stunt-plane loop-the-loop, pitching all the way round, with a little depth.
  * - `flyby`: rocket swoops out and zooms right up to the viewer in a barrel roll, then zips home.
  * - `jetpack`: no rocket; the mascot blasts up on its own thrusters, backflips twice, spins and lands.
+ *
+ * Banking tricks (the props are drawn by the ride's scene, around the mascot's "stage" spot):
+ * - `coinShower`: rises, catches a shower of gold coins, spins and shows the total.
+ * - `cashRain`: rises, spins and throws banknotes that flutter down around it.
+ * - `piggyBank`: hops onto a piggy bank, drops a coin in the slot, the piggy jiggles with joy.
+ * - `tapToPay`: taps a card on a payment terminal, the terminal says "Paid" and the mascot cheers.
+ * - `cardSurf`: surfs out and back on a giant bank card.
+ * - `growthArrow`: rides a rising chart arrow up in a zigzag, like a savings balance growing.
  */
-export const RIDE_KINDS = ['orbit', 'corkscrew', 'loop', 'flyby', 'jetpack'] as const;
+export const RIDE_KINDS = ['orbit', 'corkscrew', 'loop', 'flyby', 'jetpack', 'coinShower', 'cashRain', 'piggyBank', 'tapToPay', 'cardSurf', 'growthArrow'] as const;
 export type RideKind = (typeof RIDE_KINDS)[number];
+
+/** What the mascot rides on: the rocket, nothing (its own thrusters), a bank card or a chart arrow. */
+export type RideVehicle = 'rocket' | 'none' | 'card' | 'arrow';
+
+/** Rides with props drawn around the stage: coins, notes, a piggy bank, a payment terminal. */
+export type RideScene = 'coinShower' | 'cashRain' | 'piggyBank' | 'tapToPay';
 
 export interface FlightOptions {
   origin: { x: number; y: number };
@@ -49,7 +63,10 @@ interface Space {
 
 interface RideSpec {
   durationMs: number;
-  rocket: boolean;
+  vehicle: RideVehicle;
+  scene?: RideScene;
+  /** Time runs evenly (no ease in and out), so the pose keeps in step with the scene's CSS animations. */
+  linear?: boolean;
   pose: (t: number, s: Space) => Pose;
 }
 
@@ -70,10 +87,37 @@ const facing = (yaw: number, side: 1 | -1) => (side > 0 ? yaw : 180 - yaw);
  */
 const orbitYaw = (phi: number) => deg(Math.PI / 2 - (phi + 0.42 * Math.sin(2 * phi)));
 
+/** Where the banking tricks play: straight above the mascot (or below, near the top of the window). */
+function stageOf({ origin, side, rise }: Space) {
+  const lift = (rise < 0 ? -1 : 1) * Math.min(Math.abs(rise), 110);
+  return { x: origin.x, y: origin.y + lift, lift, side };
+}
+
+/**
+ * A stage trick: rise to the stage, perform there, and come home. `perform` gives the offsets from the
+ * stage while there; the rider travels for the first and last 14% of the ride.
+ */
+function onStage(t: number, s: Space, perform: (t: number, side: 1 | -1) => Partial<Pose>): Pose {
+  const stage = stageOf(s);
+  const there = smoothstep(0, 0.14, t) - smoothstep(0.86, 1, t);
+  const p = perform(t, s.side);
+  return {
+    x: s.origin.x + (p.x ?? 0),
+    y: s.origin.y + stage.lift * there + (p.y ?? 0),
+    z: 60 * there + (p.z ?? 0),
+    yaw: p.yaw ?? 0,
+    pitch: p.pitch ?? 0,
+    roll: p.roll ?? 0,
+  };
+}
+
+/** A hop: 0 → 1 → 0 between `a` and `b`. */
+const hop = (a: number, b: number, t: number) => (t > a && t < b ? Math.sin(((t - a) / (b - a)) * Math.PI) : 0);
+
 const RIDES: Record<RideKind, RideSpec> = {
   orbit: {
     durationMs: 5200,
-    rocket: true,
+    vehicle: 'rocket',
     pose: (t, { origin, side, reach, rise }) => {
       const phi = 2 * Math.PI * t;
       const s = Math.sin(phi);
@@ -89,7 +133,7 @@ const RIDES: Record<RideKind, RideSpec> = {
   },
   corkscrew: {
     durationMs: 5600,
-    rocket: true,
+    vehicle: 'rocket',
     pose: (t, { origin, side, reach, rise }) => {
       const phi = 4 * Math.PI * t;
       const r = Math.min(reach / 2, 130);
@@ -104,7 +148,7 @@ const RIDES: Record<RideKind, RideSpec> = {
   },
   loop: {
     durationMs: 4400,
-    rocket: true,
+    vehicle: 'rocket',
     pose: (t, { origin, side, reach, rise }) => {
       // Run out, loop the loop, run back: the loop is a full circle in the screen plane.
       const run = smoothstep(0, 0.22, t) - smoothstep(0.78, 1, t);
@@ -127,7 +171,7 @@ const RIDES: Record<RideKind, RideSpec> = {
   },
   flyby: {
     durationMs: 4300,
-    rocket: true,
+    vehicle: 'rocket',
     pose: (t, { origin, side, reach, rise }) => {
       const out = Math.sin(Math.PI * t);
       const rx = Math.min(reach * 0.5, 220);
@@ -144,7 +188,7 @@ const RIDES: Record<RideKind, RideSpec> = {
   },
   jetpack: {
     durationMs: 3800,
-    rocket: false,
+    vehicle: 'none',
     pose: (t, { origin, side, rise }) => {
       const hop = Math.sin(Math.PI * t);
       // A small settle-bounce on landing.
@@ -159,10 +203,99 @@ const RIDES: Record<RideKind, RideSpec> = {
       };
     },
   },
+  coinShower: {
+    durationMs: 4200,
+    vehicle: 'none',
+    scene: 'coinShower',
+    linear: true,
+    // Sways side to side under the falling coins, then spins with joy when the total pops up.
+    pose: (t, s) =>
+      onStage(t, s, (t) => {
+        const catching = smoothstep(0.14, 0.2, t) - smoothstep(0.62, 0.68, t);
+        return { x: 22 * Math.sin(2 * Math.PI * 2.5 * (t - 0.14)) * catching, y: -8 * Math.abs(Math.sin(2 * Math.PI * 5 * t)) * catching - 26 * hop(0.68, 0.84, t), yaw: 360 * smoothstep(0.68, 0.84, t) };
+      }),
+  },
+  cashRain: {
+    durationMs: 4400,
+    vehicle: 'none',
+    scene: 'cashRain',
+    linear: true,
+    // Spins as it throws the notes up, then rocks happily while they flutter down.
+    pose: (t, s) =>
+      onStage(t, s, (t) => ({
+        y: -18 * hop(0.16, 0.32, t),
+        yaw: 360 * smoothstep(0.16, 0.32, t),
+        roll: 14 * Math.sin(2 * Math.PI * 3 * (t - 0.32)) * (smoothstep(0.32, 0.4, t) - smoothstep(0.74, 0.82, t)),
+      })),
+  },
+  piggyBank: {
+    durationMs: 4800,
+    vehicle: 'none',
+    scene: 'piggyBank',
+    linear: true,
+    // Hops onto the piggy bank beside the stage, drops a coin in the slot, and hops back.
+    pose: (t, s) =>
+      onStage(t, s, (t, side) => {
+        const over = smoothstep(0.2, 0.36, t) - smoothstep(0.62, 0.78, t);
+        return { x: side * 88 * over, y: -30 * over - 40 * hop(0.2, 0.36, t) - 40 * hop(0.62, 0.78, t), roll: -side * 12 * (hop(0.2, 0.36, t) - hop(0.62, 0.78, t)) };
+      }),
+  },
+  tapToPay: {
+    durationMs: 4600,
+    vehicle: 'none',
+    scene: 'tapToPay',
+    linear: true,
+    // Leans towards the terminal to tap the card, then a cheering hop and spin once it is paid.
+    pose: (t, s) =>
+      onStage(t, s, (t, side) => {
+        const lean = smoothstep(0.18, 0.32, t) - smoothstep(0.52, 0.62, t);
+        return { x: side * 26 * lean, y: -34 * hop(0.62, 0.8, t), yaw: 360 * smoothstep(0.62, 0.8, t), roll: side * 10 * lean };
+      }),
+  },
+  cardSurf: {
+    durationMs: 4400,
+    vehicle: 'card',
+    // Out and back on the card, carving left and right, with a 3D turn at the far end.
+    pose: (t, { origin, side, reach, rise }) => {
+      const out = Math.sin(Math.PI * t);
+      const rx = Math.min(reach * 0.5, 230);
+      return {
+        x: origin.x + side * rx * out,
+        y: origin.y + rise * 0.6 * out + 18 * Math.sin(4 * Math.PI * t) * out,
+        z: 260 * out * out,
+        yaw: facing(180 * smoothstep(0.45, 0.6, t), side),
+        pitch: 0,
+        roll: 18 * Math.sin(4 * Math.PI * t) * out,
+      };
+    },
+  },
+  growthArrow: {
+    durationMs: 4800,
+    vehicle: 'arrow',
+    // Zigzags up like a rising chart, turns round at the top and glides home past the viewer.
+    pose: (t, { origin, side, reach, rise }) => {
+      const climb = smoothstep(0, 0.6, t);
+      const home = smoothstep(0.66, 1, t);
+      const rx = Math.min(reach * 0.5, 240);
+      const zig = 0.14 * Math.sin(3 * Math.PI * climb) * (1 - home);
+      return {
+        x: origin.x + side * rx * climb * (1 - home),
+        y: origin.y + rise * (climb * (1 - home) - zig) + 30 * Math.sin(Math.PI * home),
+        z: 180 * Math.sin(Math.PI * home),
+        yaw: facing(180 * smoothstep(0.58, 0.7, t), side),
+      };
+    },
+  },
 };
 
 export const rideDurationMs = (kind: RideKind) => RIDES[kind].durationMs;
-export const rideHasRocket = (kind: RideKind) => RIDES[kind].rocket;
+export const rideVehicle = (kind: RideKind) => RIDES[kind].vehicle;
+export const rideScene = (kind: RideKind) => RIDES[kind].scene;
+
+/** Where a ride's scene is drawn, and which way it opens (+1 right, -1 left). */
+export function rideStage(origin: FlightOptions['origin'], viewport: FlightOptions['viewport']) {
+  return stageOf(spaceAround(origin, viewport));
+}
 
 /** Any ride but the one just shown, so two clicks in a row never look the same. */
 export function pickRide(previous: RideKind | null, random: () => number = Math.random): RideKind {
@@ -187,11 +320,11 @@ function spaceAround(origin: FlightOptions['origin'], { width: w, height: h }: F
  */
 export function flightKeyframes({ origin, viewport, kind = 'orbit' }: FlightOptions): Keyframe[] {
   const space = spaceAround(origin, viewport);
-  const { pose } = RIDES[kind];
+  const { pose, linear } = RIDES[kind];
   const frames: Keyframe[] = [];
   for (let i = 0; i <= SAMPLES; i++) {
     const u = i / SAMPLES;
-    const t = easeInOutSine(u);
+    const t = linear ? u : easeInOutSine(u);
     const p = pose(t, space);
     let pitch = p.pitch;
     if (pitch === undefined) {

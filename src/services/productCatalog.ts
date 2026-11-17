@@ -40,6 +40,7 @@ export const SCHEMES: Scheme[] = [
   { id: 6, name: 'Mastercard' },
   { id: 5, name: 'VISA' },
   { id: 7, name: 'UnionPay' },
+  { id: 8, name: 'TakaPay' },
 ];
 
 export interface Bin {
@@ -56,6 +57,8 @@ export const BINS: Bin[] = [
   { id: 22, schemeId: 6, name: 'Mastercard World BIN 532101' },
   { id: 31, schemeId: 7, name: 'UnionPay Classic BIN 621234' },
   { id: 32, schemeId: 7, name: 'UnionPay Gold BIN 621235' },
+  { id: 41, schemeId: 8, name: 'TakaPay Classic BIN 960123' },
+  { id: 42, schemeId: 8, name: 'TakaPay Gold BIN 960124' },
 ];
 
 export interface CardRange {
@@ -74,6 +77,9 @@ export const CARD_RANGES: CardRange[] = [
   { id: 42, binId: 22, name: 'Range 0000000 to 9999999' },
   { id: 50, binId: 31, name: 'Range 0000000 to 0000002' },
   { id: 51, binId: 32, name: 'Range 0000000 to 4999999' },
+  { id: 60, binId: 41, name: 'Range 0000000 to 4999999' },
+  { id: 61, binId: 41, name: 'Range 5000000 to 9999999' },
+  { id: 62, binId: 42, name: 'Range 0000000 to 9999999' },
 ];
 
 export interface CardTemplate {
@@ -91,6 +97,8 @@ export const CARD_TEMPLATES: CardTemplate[] = [
   { id: 202, schemeId: 6, kind: 'ANONYMOUS', name: 'Mastercard Instant Anonymous' },
   { id: 301, schemeId: 7, kind: 'NAMED', name: 'UnionPay Named' },
   { id: 302, schemeId: 7, kind: 'ANONYMOUS', name: 'UnionPay Anonymous' },
+  { id: 401, schemeId: 8, kind: 'NAMED', name: 'TakaPay Named' },
+  { id: 402, schemeId: 8, kind: 'ANONYMOUS', name: 'TakaPay Anonymous' },
 ];
 
 /** Transaction types a product can allow, limit or charge for. */

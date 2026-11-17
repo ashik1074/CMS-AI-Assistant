@@ -432,7 +432,7 @@ function suggestScheme(f: ProductForm, p: Extract<FieldPath, { kind: 'scheme' }>
   const scheme = f.schemes[p.i];
   if (p.col === 'schemeId') {
     const taken = f.schemes.filter((_, k) => k !== p.i).map((s) => s.schemeId);
-    const pick = [5, 6, 7].find((id) => !taken.includes(id) && SCHEMES.some((s) => s.id === id));
+    const pick = [5, 6, 7, 8].find((id) => !taken.includes(id) && SCHEMES.some((s) => s.id === id));
     if (pick === undefined) return no('Every scheme is already configured on this product.');
     // A new scheme has its own templates and BINs.
     const next = scheme.schemeId === pick ? scheme : { schemeId: pick, namedTemplateId: null, anonymousTemplateId: null, ranges: scheme.ranges.map(() => ({ binId: null, cardRangeId: null })) };
